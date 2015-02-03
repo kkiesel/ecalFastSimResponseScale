@@ -107,6 +107,8 @@ TGraphAsymmErrors getScaleWithUncertainties( const TH1D& h1_fast, const TH1D& h1
 
     int entriesFast = h1_fast.GetEntries();
     int entriesFull = h1_full.GetEntries();
+    cout << "Entries Fast = " << entriesFast << endl;
+    cout << "Entries Full = " << entriesFull << endl;
 
     int nBinsFast = h1_fast.GetNbinsX()+2;
     int nBinsFull = h1_fast.GetNbinsX()+2;
@@ -121,16 +123,23 @@ TGraphAsymmErrors getScaleWithUncertainties( const TH1D& h1_fast, const TH1D& h1
 
     int summedEntriesFast = 0;
     for( int binFast=1; binFast<nBinsFast; ++binFast ) {
+
+        bool debug = binFast == 375 || binFast == 1290; // pick an example bin
+        if(debug) cout << "Calculate scale for fastsim bin " << binFast << " corresponding to E/E_gen=" << h1_fast.GetBinCenter(binFast) << endl;
+
         summedEntriesFast += h1_fast.GetBinContent( binFast );
+        if(debug) cout << "Fastsim entries up to this bin (integral) = " << summedEntriesFast << endl;
         //double areaFast = summedEntriesFast/entriesFast; // not needed, since the mean is calculated as (up+down)/2
 
         // Take into account the statistical precission of h1
         double areaFastUp = eff.ClopperPearson( entriesFast, summedEntriesFast, alpha, true );
         double areaFastDn = eff.ClopperPearson( entriesFast, summedEntriesFast, alpha, false );
+        if(debug) cout << "This corresponds to an normalised area ( acceptance) of something in between " << areaFastDn << " to " << areaFastUp << endl;
 
         // Number of entries in the fullsim corresponding to these bondaries
         int entriesFull_StatFastDn = floor( areaFastDn * entriesFull );
         int entriesFull_StatFastUp = ceil ( areaFastUp * entriesFull );
+        if(debug) cout << "To aquire the same acceptance (area) in fullsim, " << entriesFull_StatFastDn << " to " << entriesFull_StatFastUp << " fullsim entries are needed" <<  endl;
 
 
         // Find the bins in hFull, which corresponds to the same area from hFast
@@ -147,9 +156,11 @@ TGraphAsymmErrors getScaleWithUncertainties( const TH1D& h1_fast, const TH1D& h1
                 binFull_StatFastUp = binFull;
             }
         }
+        if(debug) cout << "The lowest possible bin with this requirement is " << binFull_StatFastDn << " (" << h1_full.GetBinCenter( binFull_StatFastDn ) << ") and the highest possible bin is " << binFull_StatFastUp << " (" << h1_full.GetBinCenter( binFull_StatFastUp ) << ")" << endl;
 
         // Take the middle. This is somehow arbitrary, but feel free to envolve a better method
         int binFullMiddle = (binFull_StatFastUp + binFull_StatFastDn)/2;
+        if(debug) cout << "As a simplification, take the mean bin " << binFullMiddle << " (" << h1_full.GetBinCenter( binFullMiddle ) << ")" << endl;
 
         // Compute the statistical precission of hFull
         double areaFullUp = eff.ClopperPearson( entriesFull, cumulativeFull.at(binFullMiddle), alpha, true );
@@ -170,6 +181,7 @@ TGraphAsymmErrors getScaleWithUncertainties( const TH1D& h1_fast, const TH1D& h1
                 binFull_StatFullUp = binFull;
             }
         }
+        if(debug) cout << "The statistical uncertainty of fullsim corresponds to an region of " << binFull_StatFullDn << " (" << h1_full.GetBinCenter( binFull_StatFullDn ) << ")" << endl;
 
         // Calculate the scale
         double efull = h1_fast.GetBinCenter( binFullMiddle );
@@ -183,6 +195,8 @@ TGraphAsymmErrors getScaleWithUncertainties( const TH1D& h1_fast, const TH1D& h1
         // now combine binning uncertainty, and stat h1 and stat h2
         double errorUp = sqrt( pow(h1_fast.GetBinCenter( binFull_StatFastUp )-efull, 2 ) + pow(h1_fast.GetBinCenter( binFull_StatFullUp )-efull, 2 ) + binningUncertSquared ) / efast;
         double errorDn = sqrt( pow(h1_fast.GetBinCenter( binFull_StatFastDn )-efull, 2 ) + pow(h1_fast.GetBinCenter( binFull_StatFullDn )-efull, 2 ) + binningUncertSquared ) / efast;
+
+        if(debug) cout << "This yields a scale of " << scale << " - " << errorDn << " + " << errorUp << endl;
 
         out.SetPoint( binFast, efast, scale );
         out.SetPointError( binFast, 0, 0, errorDn, errorUp );
@@ -295,6 +309,8 @@ TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
     // For each E_gen, eta_gen bin, extract the one dimensional E_sim/E_gen histogram
     for( int xbin=1; xbin<h3_fast.GetNbinsX()+1; ++xbin ) { // E_gen
         for( int ybin=1; ybin<h3_fast.GetNbinsY()+1; ++ybin ) { // eta_gen
+            xbin = 2;
+            ybin=2;
 
             // Get name (bin ranges) for this specific histogram
             // e.g. E=20GeV, 0.2 < eta < 0.4
@@ -337,9 +353,9 @@ TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
 
             std::string savename = std::to_string(xbin) + "and" + std::to_string(ybin);
            drawAll( (TH1D)(*h1_fast), (TH1D)(*h1_full), scale, corrScale, savename );
+    exit(0);
         }
     }
-    //exit(0);
 
     return h3_scale;
 }
@@ -386,7 +402,7 @@ int main( int argc, char** argv ) {
     std::string histname = "ecalScaleFactorCalculator/energyVsEVsEta";
 
     setStyle();
-    gErrorIgnoreLevel = kWarning;
+    //gErrorIgnoreLevel = kWarning;
 
     //drawMeanResponse( getHisto<TH3F>( filenameFast, histname ), getHisto<TH3F>( filenameFull, histname ) ); // analysis function
     auto h = calculateResponse( getHisto<TH3F>( filenameFast, histname ), getHisto<TH3F>( filenameFull, histname ) );
