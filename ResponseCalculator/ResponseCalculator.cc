@@ -93,8 +93,8 @@ TGraphAsymmErrors getScaleWithUncertainties( const TH1D& h1_fast, const TH1D& h1
 
     // Unweighted histograms are assumed
     // A cast to int is done, to bypass numerical (un)precission
-    if( (int)h1_fast.GetEntries() != (int)h1_fast.GetEffectiveEntries() ||
-            (int)h1_full.GetEntries() != (int)h1_full.GetEffectiveEntries() ) {
+    if( round(h1_fast.GetEntries()) != round(h1_fast.GetEffectiveEntries()) ||
+            round(h1_full.GetEntries()) != round(h1_full.GetEffectiveEntries()) ) {
         std::cerr << "Please provide unweighted histograms" << std::endl;
         return out;
     }
@@ -386,6 +386,7 @@ int main( int argc, char** argv ) {
     std::string histname = "ecalScaleFactorCalculator/energyVsEVsEta";
 
     setStyle();
+    gErrorIgnoreLevel = kWarning;
 
     //drawMeanResponse( getHisto<TH3F>( filenameFast, histname ), getHisto<TH3F>( filenameFull, histname ) ); // analysis function
     auto h = calculateResponse( getHisto<TH3F>( filenameFast, histname ), getHisto<TH3F>( filenameFull, histname ) );
