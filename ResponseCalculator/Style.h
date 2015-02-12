@@ -1,3 +1,4 @@
+#include <TColor.h>
 #include <TStyle.h>
 #include <TPad.h>
 
@@ -42,6 +43,14 @@ TStyle* setStyle2d() {
     myStyle->SetOptLogx(0);
     myStyle->SetOptLogy(0);
     myStyle->SetPadRightMargin(0.18);
+
+    int NRGBs = 3, NCont = 999;
+    gStyle->SetNumberContours(NCont);
+    Double_t stops[NRGBs] = { 0.00, 0.50, 1.00 };
+    Double_t red[NRGBs]   = { 0.00, 1.00, 1.00 };
+    Double_t green[NRGBs] = { 0.00, 1.00, 0.00 };
+    Double_t blue[NRGBs]  = { 1.00, 1.00, 0.00 };
+    TColor::CreateGradientColorTable(NRGBs, stops, red, green, blue, NCont);
 
     myStyle->cd();
     return myStyle;
