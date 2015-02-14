@@ -1,110 +1,80 @@
 import ROOT
-from treeFunctions import myLegend
 
-class Multihisto:
-	def __init__( self ):
-		self.orderByIntegral = True
-		self.histos = []
-		self.histosToStack = []
-		self.minimum = None
-		self.maximum = None
-		self.leg = myLegend(.7,.7,.93,.92)
+class Multiplot:
+    def __init__( self ):
+        self.hists = []
+        self.histsToStack = []
 
-	def setMinimum( self, m ):
-		self.minimum = m
+        # todo: impmlement setter and getter
+        self.minimum = None
+        self.maximum = None
 
-	def setMaximum( self, m ):
-		self.maximum = m
+        self.leg = ROOT.TLegend(.7,.7,.93,.92)
 
-	def addHisto( self, singleHisto, label=None, toStack=False, draw="hist" ):
-		if toStack:
-			self.histosToStack.append( ( singleHisto, label, draw ) )
-		else:
-			self.histos.append( ( singleHisto, label, draw ) )
+    def add( self, h ):
+        # important histograms first, they will be drawn on top
+        self.hists.append( h )
 
-	def stackHistos( self ):
-		if not self.histosToStack:
-			return
-		if self.orderByIntegral:
-			# sort histograms first
-			self.histosToStack.sort( key=lambda x: x[0].Integral() )
+    def addStack( self, h ):
+        self.histsToStack.append( h )
 
-		stack = ROOT.THStack()
-		stack.SetTitle( ";%s;%s"%(self.histosToStack[0][0].GetXaxis().GetTitle(),self.histosToStack[0][0].GetYaxis().GetTitle()) )
-		for h in self.histosToStack:
-			h[0].SetFillColor( h[0].GetLineColor() )
-			h[0].SetLineColor(1)
-			stack.Add( h[0] )
+    def getMinimum( self ):
+        return min( [ h.GetMinimum(0) for h in self.hists ] )
 
-		self.stack = stack
-		return stack
+    def getMaximum( self ):
+        return max( [ h.GetMaximum() for h in self.hists ] )
 
-	def GetMinimum( self, histos ):
-		values = []
+    def stackHists( self ):
+        if not self.histsToStack:
+            return
+        #stack = ROOT.THStack()
+        #stack.SetTitle( ";%s;%s"%(self.histosToStack[0][0].GetXaxis().GetTitle(),self.histosToStack[0][0].GetYaxis().GetTitle()) )
+        stack = ROOT.THStack( self.histsToStack[0] ) # get title, etc
+        for h in histsToStack:
+            h.SetFillColor( h.GetLineColor() )
+            h.SetLineColor( ROOT.kBlack )
+            stack.Add( h )
 
-		for hist, label, draw in histos + self.histosToStack:
-			if not isinstance( hist, ROOT.THStack ):
-				values.append( hist.GetMinimum(0) )
+        self.hists.append( stack )
 
-		return min( values )
-
-	def GetMaximum( self, histos ):
-		return max( [ x[0].GetMaximum() for x in histos ] )
-
-	def fillLegend( self ):
-		for hist, label, draw in self.histos:
-			if label:
-				legendOption = "l"
-				if "p" in draw:
-					legendOption = "pe"
-				elif "hist" in draw:
-					legendOption = "l"
-				elif draw == "e2":
-					legendOption = "f"
-				if label == "Simulation":
-					legendOption = "lep"
-				if label == "Prediction":
-					legendOption = "lfe"
-				self.leg.AddEntry( hist, label, legendOption )
-		for hist, label, draw in reversed(self.histosToStack):
-			if label:
-				self.leg.AddEntry( hist, label, "f" )
-
-	def Draw( self  ):
-		if not self.histos and not self.histosToStack:
-			print "No histogram added"
-			return
-
-		stack = self.stackHistos()
-		self.stack = stack
-
-		histosToDraw = self.histos
-		if stack:
-			histosToDraw = [(stack, "", "hist" )] + self.histos
-
-		maximum = self.GetMaximum( histosToDraw )
-		minimum = self.GetMinimum( histosToDraw )
-		if not ROOT.gPad or ROOT.gPad.GetLogy():
-			maximum = 2.5*maximum
-			minimum = 0.3*minimum
-		else:
-			maximum = maximum + (maximum-minimum)*.1
-			minimum = minimum - (maximum-minimum)*.1
-
-		if self.maximum != None:
-			maximum = self.maximum
-		if self.minimum != None:
-			minimum = self.minimum
-
-		histosToDraw[0][0].SetMaximum( maximum )
-		histosToDraw[0][0].SetMinimum( minimum )
-
-		histosToDraw[0][0].Draw( histosToDraw[0][2] )
-		for hist, label, draw in histosToDraw[1:]:
-			hist.Draw("same %s"%draw)
+    def getStatBoxes( self ):
+        self.statBoxes = []
+        for h in self.hists:
+            h.Draw()
+            ROOT.gPad.Update()
+            self.statBoxes.append( h.GetListOfFunctions().FindObject("stats").Clone(h.GetName()+"_stats") )
 
 
-		self.fillLegend()
-		if self.leg.GetNRows():
-			self.leg.Draw()
+    def Draw( self ):
+        self.stackHists()
 
+        minimum = self.getMinimum()
+        maximum = self.getMaximum()
+
+        if ROOT.gPad and ROOT.gPad.GetLogy():
+            maximum = 2.5*maximum
+            minimum = 0.3*minimum
+        else:
+            maximum = maximum + (maximum-minimum)*.1
+            minimum = max(0,minimum - (maximum-minimum)*.1)
+
+        if self.maximum != None:
+            maximum = self.maximum
+        if self.minimum != None:
+            minimum = self.minimum
+
+        # fill legend (in correct order)
+        for h in self.hists:
+            # todo: special cases?
+            self.leg.AddEntry( h, h.GetName(), "lpe" )
+        for h in self.histsToStack:
+            self.leg.AddEntry( h, h.GetName(), "f" )
+
+        # change the order for drawing
+        self.hists.reverse()
+        self.hists[0].SetMinimum( minimum )
+        self.hists[0].SetMaximum( maximum )
+        self.hists[0].Draw( self.hists[0].drawOption_ )
+
+        for h in self.hists[1:]:
+            h.Draw( "same %s"%h.drawOption_ )

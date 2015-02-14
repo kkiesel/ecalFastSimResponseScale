@@ -22,20 +22,19 @@ def defaultStyle():
     st.SetTitleFillColor( ROOT.kWhite )
     st.SetTitleBorderSize( 0 )
 
+    st.SetTitleOffset( 1.1, "x" )
+    st.SetTitleOffset( 1.6, "y" )
+
     st.SetStatBorderSize(1)
     st.SetStatColor(0)
 
     st.SetLegendBorderSize(0)
     st.SetLegendFillColor( ROOT.kWhite )
 
+    st.SetOptStat(0)
 
-    font = 42
-    textSize = 0.035
-
-    st.SetTextFont( font )
-    st.SetTextSize( textSize )
-
-
+    st.SetTextFont( st.GetLabelFont() )
+    st.SetTextSize( st.GetLabelSize() )
 
 
     st.cd()

@@ -81,6 +81,7 @@ class Ratio:
                 xaxis.SetTitleColor(0)
                 xaxis.SetTitleSize(0)
 
+
         csf = 0.2 # the ratio in which the pad is splitted
         ROOT.gPad.SetBottomMargin( csf + (1-csf)*ROOT.gPad.GetBottomMargin() - csf*ROOT.gPad.GetTopMargin() )
         rPad = ROOT.TPad( "rPad", "ratio", 0, 0, 1, 1 )
@@ -93,10 +94,12 @@ class Ratio:
         self.totalUncert.Draw("e2")
         if self.sysHisto:
             self.ratioSys.Draw("e2 same")
-        self.ratio.Draw("e0 same x0")
+        self.ratio.Draw("e0 same")
         if yMin < 1 and yMax > 1:
             oneLine = ROOT.TLine()
             oneLine.SetLineStyle(2)
-            oneLine.DrawLine( self.ratio.GetBinLowEdge(1), 1.0, self.ratio.GetBinLowEdge(self.ratio.GetNbinsX()+1), 1.0 )
+            axis = self.ratio.GetXaxis()
+            oneLine.DrawLine( self.ratio.GetBinLowEdge( axis.GetFirst() ), 1.0,
+                self.ratio.GetBinLowEdge( axis.GetLast() ), 1.0 )
 
 
