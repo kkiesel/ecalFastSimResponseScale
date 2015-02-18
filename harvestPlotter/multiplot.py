@@ -37,13 +37,6 @@ class Multiplot:
 
         self.hists.append( stack )
 
-    def getStatBoxes( self ):
-        self.statBoxes = []
-        for h in self.hists:
-            h.Draw()
-            ROOT.gPad.Update()
-            self.statBoxes.append( h.GetListOfFunctions().FindObject("stats").Clone(h.GetName()+"_stats") )
-
 
     def Draw( self ):
         self.stackHists()

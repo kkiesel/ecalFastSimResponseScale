@@ -4,6 +4,11 @@ from prettifyFunctions import randomName
 
 class Ratio:
     def __init__( self, title, numerator, denominator, sysHisto=None ):
+        if isinstance( numerator, ROOT.TProfile ):
+            numerator = numerator.ProjectionX( randomName() )
+        if isinstance( denominator, ROOT.TProfile ):
+            denominator = denominator.ProjectionX( randomName() )
+
         self.title = title
         self.numerator = numerator
         self.denominator = denominator
