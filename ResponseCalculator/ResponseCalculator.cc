@@ -1,7 +1,7 @@
-#include<iostream>
-#include<string>
-#include<sstream>
 #include<iomanip> // provides setprecision
+#include<iostream>
+#include<sstream>
+#include<string>
 
 // ROOT
 #include<TCanvas.h>
@@ -12,6 +12,7 @@
 #include<TLine.h>
 #include<TMath.h>
 #include<TProfile2D.h>
+#include<TROOT.h>
 
 // user incuded files
 #include "Style.h"
@@ -19,7 +20,7 @@
 using namespace std;
 
 template <class HIST>
-HIST getHisto( std::string const & filename, std::string const & histname ) {
+HIST getHist( std::string const & filename, std::string const & histname ) {
     // Reads a histogram from a file
 
     TFile file( filename.c_str() );
@@ -34,11 +35,16 @@ HIST getHisto( std::string const & filename, std::string const & histname ) {
             << " histogram from " << filename << std::endl;
         exit(1);
     }
-
     // Before closing the file, the histogram has to be written on memory
-    //HIST hist( *((HIST*)obj));
-    HIST hist = *((HIST*)obj);
+    gROOT->cd();
+    HIST hist( *((HIST*)obj));
     file.Close();
+
+    // smaller eta_gen bins
+    hist.RebinY(15);
+
+    // smaller e/e_gen bins
+    //hist.RebinZ(100);
 
     return hist;
 }
@@ -55,7 +61,7 @@ TGraphAsymmErrors modifyScale( const TGraphAsymmErrors& origScale, double mean )
         double errorUp = modScale->GetErrorYhigh(i);
         double errorDn = modScale->GetErrorYlow(i);
         if(
-            (errorUp+errorDn)/2 > std::abs( mean - 1 ) // uncertainty larger than correction
+            (errorUp+errorDn)/2 > std::max( 0.05, std::abs( mean - 1 ) )// uncertainty larger than correction
         ) {
             modScale->SetPoint( i, x, mean );
         }
@@ -107,8 +113,6 @@ TGraphAsymmErrors getScaleWithUncertainties( const TH1D& h1_fast, const TH1D& h1
 
     int entriesFast = h1_fast.GetEntries();
     int entriesFull = h1_full.GetEntries();
-    cout << "Entries Fast = " << entriesFast << endl;
-    cout << "Entries Full = " << entriesFull << endl;
 
     int nBinsFast = h1_fast.GetNbinsX()+2;
     int nBinsFull = h1_fast.GetNbinsX()+2;
@@ -123,23 +127,16 @@ TGraphAsymmErrors getScaleWithUncertainties( const TH1D& h1_fast, const TH1D& h1
 
     int summedEntriesFast = 0;
     for( int binFast=1; binFast<nBinsFast; ++binFast ) {
-
-        bool debug = binFast == 375 || binFast == 1290; // pick an example bin
-        if(debug) cout << "Calculate scale for fastsim bin " << binFast << " corresponding to E/E_gen=" << h1_fast.GetBinCenter(binFast) << endl;
-
         summedEntriesFast += h1_fast.GetBinContent( binFast );
-        if(debug) cout << "Fastsim entries up to this bin (integral) = " << summedEntriesFast << endl;
         //double areaFast = summedEntriesFast/entriesFast; // not needed, since the mean is calculated as (up+down)/2
 
         // Take into account the statistical precission of h1
         double areaFastUp = eff.ClopperPearson( entriesFast, summedEntriesFast, alpha, true );
         double areaFastDn = eff.ClopperPearson( entriesFast, summedEntriesFast, alpha, false );
-        if(debug) cout << "This corresponds to an normalised area ( acceptance) of something in between " << areaFastDn << " to " << areaFastUp << endl;
 
         // Number of entries in the fullsim corresponding to these bondaries
         int entriesFull_StatFastDn = floor( areaFastDn * entriesFull );
         int entriesFull_StatFastUp = ceil ( areaFastUp * entriesFull );
-        if(debug) cout << "To aquire the same acceptance (area) in fullsim, " << entriesFull_StatFastDn << " to " << entriesFull_StatFastUp << " fullsim entries are needed" <<  endl;
 
 
         // Find the bins in hFull, which corresponds to the same area from hFast
@@ -156,11 +153,9 @@ TGraphAsymmErrors getScaleWithUncertainties( const TH1D& h1_fast, const TH1D& h1
                 binFull_StatFastUp = binFull;
             }
         }
-        if(debug) cout << "The lowest possible bin with this requirement is " << binFull_StatFastDn << " (" << h1_full.GetBinCenter( binFull_StatFastDn ) << ") and the highest possible bin is " << binFull_StatFastUp << " (" << h1_full.GetBinCenter( binFull_StatFastUp ) << ")" << endl;
 
         // Take the middle. This is somehow arbitrary, but feel free to envolve a better method
         int binFullMiddle = (binFull_StatFastUp + binFull_StatFastDn)/2;
-        if(debug) cout << "As a simplification, take the mean bin " << binFullMiddle << " (" << h1_full.GetBinCenter( binFullMiddle ) << ")" << endl;
 
         // Compute the statistical precission of hFull
         double areaFullUp = eff.ClopperPearson( entriesFull, cumulativeFull.at(binFullMiddle), alpha, true );
@@ -181,7 +176,6 @@ TGraphAsymmErrors getScaleWithUncertainties( const TH1D& h1_fast, const TH1D& h1
                 binFull_StatFullUp = binFull;
             }
         }
-        if(debug) cout << "The statistical uncertainty of fullsim corresponds to an region of " << binFull_StatFullDn << " (" << h1_full.GetBinCenter( binFull_StatFullDn ) << ")" << endl;
 
         // Calculate the scale
         double efull = h1_fast.GetBinCenter( binFullMiddle );
@@ -196,8 +190,6 @@ TGraphAsymmErrors getScaleWithUncertainties( const TH1D& h1_fast, const TH1D& h1
         double errorUp = sqrt( pow(h1_fast.GetBinCenter( binFull_StatFastUp )-efull, 2 ) + pow(h1_fast.GetBinCenter( binFull_StatFullUp )-efull, 2 ) + binningUncertSquared ) / efast;
         double errorDn = sqrt( pow(h1_fast.GetBinCenter( binFull_StatFastDn )-efull, 2 ) + pow(h1_fast.GetBinCenter( binFull_StatFullDn )-efull, 2 ) + binningUncertSquared ) / efast;
 
-        if(debug) cout << "This yields a scale of " << scale << " - " << errorDn << " + " << errorUp << endl;
-
         out.SetPoint( binFast, efast, scale );
         out.SetPointError( binFast, 0, 0, errorDn, errorUp );
     }
@@ -206,7 +198,7 @@ TGraphAsymmErrors getScaleWithUncertainties( const TH1D& h1_fast, const TH1D& h1
 
 }
 
-TH1F graphToHisto( const TGraphAsymmErrors& gr ) {
+TH1F graphToHisto( const TGraph& gr ) {
     auto h = gr.GetHistogram();
     h->Reset( "ICESM" );
     for( int i=0;i<gr.GetN();i++) {
@@ -217,7 +209,7 @@ TH1F graphToHisto( const TGraphAsymmErrors& gr ) {
     return *h;
 }
 
-void applyScale( TH1D h1_fast, TH1D h1_full, TGraphAsymmErrors scale, const std::string& savename ) {
+void applyScale( TH1D h1_fast, TH1D h1_full, const TGraphAsymmErrors& scale, const std::string& savename ) {
 
     auto fast_clone = (TH1D*)h1_fast.Clone();
 
@@ -257,10 +249,12 @@ void applyScale( TH1D h1_fast, TH1D h1_full, TGraphAsymmErrors scale, const std:
 }
 
 void drawAll( TH1D h1_fast, TH1D h1_full, TGraphAsymmErrors scale, TGraphAsymmErrors corrScale, const std::string& savename ) {
+    // The inputs are cloned, so we can modify them
 
-    applyScale( h1_fast, h1_full, corrScale, savename );
 
-    // clone inputs, since we modify them for drawing
+    // "Closure test"
+    //applyScale( h1_fast, h1_full, corrScale, savename );
+
     h1_fast.Scale( 1./h1_fast.GetEntries() );
     h1_full.Scale( 1./h1_full.GetEntries() );
 
@@ -269,15 +263,19 @@ void drawAll( TH1D h1_fast, TH1D h1_full, TGraphAsymmErrors scale, TGraphAsymmEr
 
     auto minBin = std::min( h1_fast.FindFirstBinAbove(), h1_full.FindFirstBinAbove() );
     auto maxBin = std::max( h1_fast.FindLastBinAbove(),  h1_full.FindLastBinAbove()  );
+    minBin=0;
+    maxBin=h1_fast.FindBin(1.05);
+
     h1_fast.GetXaxis()->SetRange( minBin, maxBin );
     h1_full.GetXaxis()->SetRange( minBin, maxBin );
 
     scale.GetXaxis()->SetLimits( h1_fast.GetBinLowEdge( minBin ),
         h1_fast.GetBinLowEdge( maxBin+1 ));
 
-    scale.SetMaximum(1.05);
-    scale.SetMinimum(0.95);
-    scale.GetYaxis()->SetNdivisions( 2, 0, 2 );
+    scale.SetMaximum(2);
+    scale.SetMinimum(0);
+    //scale.GetYaxis()->SetNdivisions( 2, 0, 2 );
+    scale.SetMarkerStyle( kFullDotMedium );
     corrScale.SetLineColor(6);
 
     h1_fast.SetMaximum( 1.05*std::max( h1_fast.GetMaximum(), h1_full.GetMaximum() ) );
@@ -287,8 +285,8 @@ void drawAll( TH1D h1_fast, TH1D h1_full, TGraphAsymmErrors scale, TGraphAsymmEr
     h1_fast.Draw("hist");
     h1_full.Draw("hist same");
 
-    newRatioPad();
-    scale.Draw("a*0");
+    newRatioPad(0.6);
+    scale.Draw("apz0");
     corrScale.Draw("same l");
     TLine* oneLine = new TLine();
     oneLine->SetLineStyle(2);
@@ -298,6 +296,19 @@ void drawAll( TH1D h1_fast, TH1D h1_full, TGraphAsymmErrors scale, TGraphAsymmEr
 
 }
 
+std::string getBinLabel( const TH3F& h3, int xbin, int ybin ) {
+
+    // Get name (bin ranges) for this specific histogram
+    // e.g. E=20GeV, 0.2 < eta < 0.4
+    std::ostringstream sname;
+    sname << "E^{gen} = " << int(h3.GetXaxis()->GetBinCenter( xbin )) << " GeV, "
+          << std::setprecision(3) << h3.GetYaxis()->GetBinLowEdge( ybin )
+          << " #leq |#eta^{gen}| < "
+          << std::setprecision(3) << h3.GetYaxis()->GetBinUpEdge( ybin );
+    std::string name = sname.str();
+    return name;
+
+}
 
 TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
 
@@ -305,30 +316,15 @@ TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
     auto h3_scale = *((TH3F*)h3_fast.Clone());
     h3_scale.Reset();
 
-
     // For each E_gen, eta_gen bin, extract the one dimensional E_sim/E_gen histogram
-    for( int xbin=1; xbin<h3_fast.GetNbinsX()+1; ++xbin ) { // E_gen
-        for( int ybin=1; ybin<h3_fast.GetNbinsY()+1; ++ybin ) { // eta_gen
-            xbin = 2;
-            ybin=2;
+    for( int xbin=1; xbin< h3_fast.GetNbinsX()+1; ++xbin ) { // E_gen
+        for( int ybin=1; ybin< h3_fast.GetNbinsY()+1; ++ybin ) { // eta_gen
 
-            // Get name (bin ranges) for this specific histogram
-            // e.g. E=20GeV, 0.2 < eta < 0.4
-            std::ostringstream sname;
-            sname << "E^{gen} = " << int(h3_fast.GetXaxis()->GetBinCenter( xbin )) << " GeV"
-                  << ", "
-                  << std::setprecision(3) << h3_fast.GetYaxis()->GetBinLowEdge( ybin )
-                  << " #leq |#eta^{gen}| < "
-                  << std::setprecision(3) << h3_fast.GetYaxis()->GetBinUpEdge( ybin );
-            std::string name = sname.str();
+            auto name = getBinLabel( h3_fast, xbin, ybin );
 
             // Create the 1d histograms
             auto h1_fast = h3_fast.ProjectionZ( (name+" fast").c_str(), xbin, xbin, ybin, ybin );
             auto h1_full = h3_full.ProjectionZ( (name+" full").c_str(), xbin, xbin, ybin, ybin );
-
-            // Here the binning of E_sim/E_gen can be adjusted
-//            h1_fast->Rebin(500);
-//            h1_full->Rebin(500);
 
             if( !h1_fast->GetEntries() || !h1_full->GetEntries() ) continue;
 
@@ -353,14 +349,13 @@ TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
 
             std::string savename = std::to_string(xbin) + "and" + std::to_string(ybin);
            drawAll( (TH1D)(*h1_fast), (TH1D)(*h1_full), scale, corrScale, savename );
-    exit(0);
         }
     }
 
     return h3_scale;
 }
 
-void drawMeanResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
+TH2D drawMeanResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
     // Analysis function. The result of this function is NOT used for scaling,
     // but for analysis purpose only. The mean scale (E_sim/E_gen) is plotted
     // as a function of E_gen and eta_gen
@@ -380,14 +375,42 @@ void drawMeanResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
 
     h2_full->GetYaxis()->SetRangeUser(5, 105);
 
-    auto st = setStyle2d();
-    st->SetPalette(1);
+    setStyle2d();
     TCanvas* can = new TCanvas();
     can->cd();
+
     h2_full->Draw("colz");
 
     can->SaveAs( "meanResponse.pdf" );
-    exit(0);
+    return *h2_full;
+
+}
+
+TH3F meanResponseAsH3( const TH3F& h3_fast, const TH3F& h3_full ) {
+    /* I'm to lazy to rewrite the cmssw code, so just put the th2 into a th3
+     * the z-axis of courese does not make any sence
+     */
+    auto h2 = drawMeanResponse( h3_fast, h3_full );
+
+    // This is the output histogram
+    auto h3_scale = *((TH3F*)h3_fast.Clone());
+    h3_scale.Reset();
+
+    // For each E_gen, eta_gen bin, extract the one dimensional E_sim/E_gen histogram
+    for( int xbin=1; xbin< h3_scale.GetNbinsX()+1; ++xbin ) { // E_gen
+        float genE = h3_fast.GetXaxis()->GetBinCenter( xbin );
+        for( int ybin=1; ybin< h3_scale.GetNbinsY()+1; ++ybin ) { // eta_gen
+            float genEta = h3_fast.GetYaxis()->GetBinCenter( ybin );
+            float content = h2.GetBinContent( h2.FindBin( genEta, genE ) );
+            cout << genE << " " << genEta << " " << content << endl;
+            for( int zbin=1; zbin< h3_scale.GetNbinsZ()+1; ++zbin ) { // energy
+                //h3_scale.SetBinContent( xbin, ybin, zbin, content );
+                h3_scale.SetBinContent( xbin, ybin, zbin, 1 );
+            }
+        }
+    }
+
+    return h3_scale;
 
 }
 
@@ -399,19 +422,24 @@ int main( int argc, char** argv ) {
     std::string filenameFast = argv[1];
     std::string filenameFull = argv[2];
 
+    // This histogram should be avaiable in both input files
     std::string histname = "ecalScaleFactorCalculator/energyVsEVsEta";
 
     setStyle();
-    //gErrorIgnoreLevel = kWarning;
-
-    //drawMeanResponse( getHisto<TH3F>( filenameFast, histname ), getHisto<TH3F>( filenameFull, histname ) ); // analysis function
-    auto h = calculateResponse( getHisto<TH3F>( filenameFast, histname ), getHisto<TH3F>( filenameFull, histname ) );
+//    gErrorIgnoreLevel = kWarning; // Obmitting TCanvas::Print messages
 
 
-    TFile file( "scaleECALFastsim.root", "recreate" );
+
+
+//    auto h = meanResponseAsH3( getHist<TH3F>( filenameFast, histname ), getHist<TH3F>( filenameFull, histname ) ); // analysis function
+    auto h = calculateResponse( getHist<TH3F>( filenameFast, histname ), getHist<TH3F>( filenameFull, histname ) );
+
+
+/*    TFile file( "scaleECALFastsim_Unity.root", "recreate" );
     file.cd();
     h.Write();
     file.Close();
+*/
 }
 
 
