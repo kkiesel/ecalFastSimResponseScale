@@ -3,8 +3,8 @@ INCS = -I$(shell root-config --incdir) -I.
 
 WARN = -Wall -Wshadow
 
-OBJ = ResponseCalculator.o
 EXE = ResponseCalculator
+OBJ = $(EXE).o
 
 all: $(EXE) Makefile
 	@
@@ -17,7 +17,7 @@ $(EXE): $(OBJ)
 
 
 clean:
-	@rm -f $(OBJ)
+	@rm -f *.o # objects
 	@rm -f *.cxx lib*h # remove rootcints generated source and header files
 	@rm -f AutoDict_* *_h.d *_cc.d *_C.d # cint generated files
 
