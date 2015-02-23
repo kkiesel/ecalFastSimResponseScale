@@ -1,6 +1,15 @@
 import ROOT
 from math import sqrt
-from prettifyFunctions import randomName
+
+def randomName():
+    """
+    Generate a random string. This function is useful to give ROOT objects
+    different names to avoid overwriting.
+    """
+    from random import randint
+    from sys import maxint
+    return "%x"%(randint(0, maxint))
+
 
 class Ratio:
     def __init__( self, title, numerator, denominator, sysHisto=None ):
@@ -16,6 +25,7 @@ class Ratio:
         self.ratio = numerator.Clone( randomName() )
         self.ratioSys = denominator.Clone( randomName() )
         self.totalUncert = denominator.Clone( randomName() )
+        self.allowUnsymmetricYaxis_ = False
 
     def calculateRatio( self ):
         for bin in range(self.numerator.GetNbinsX()+2):
@@ -36,25 +46,46 @@ class Ratio:
                 self.ratio.SetBinError( bin, 1.*self.numerator.GetBinError(bin)/self.numerator.GetBinContent(bin) )
                 self.ratio.SetBinContent(bin,0)
 
-    def draw( self, yMin=None, yMax=None ):
-        self.calculateRatio()
+    def allowUnsymmetricYaxis( self, allow=True ):
+        self.allowUnsymmetricYaxis_ = allow
 
+    def getYrange( self ):
         # If no minimum or maximum is specified, choose a minimum from 0 to .5
         # and a maximum from 1.5 to 50
-        if yMin == None:
-            #yMin = min( max(0, self.ratio.GetBinContent(self.ratio.GetMinimumBin())), .5 )
-            # minimum, which is larger than 0
-            yMin = 0
-            minimum = self.ratio.GetBinContent(self.ratio.GetMaximumBin())
-            for bin in range( self.ratio.GetNbinsX()+2 ):
-                minInBin = self.ratio.GetBinContent(bin)
-                if minInBin < minimum and minInBin > 0:
-                    minimum = minInBin
-            yMin = minimum*.95
-        if yMax == None:
-            from math import ceil
-            yMax = min( max(1.5, ceil(self.ratio.GetBinContent(self.ratio.GetMaximumBin()))), 50 )
-            yMax = self.ratio.GetBinContent(self.ratio.GetMaximumBin())*1.05
+        yMin = 0
+        minimum = self.ratio.GetBinContent(self.ratio.GetMaximumBin())
+        for bin in range( self.ratio.GetNbinsX()+2 ):
+            minInBin = self.ratio.GetBinContent(bin)
+            if minInBin < minimum and minInBin > 0:
+                minimum = minInBin
+        yMin = minimum*.95
+
+        from math import ceil
+        yMax = min( max(1.5, ceil(self.ratio.GetBinContent(self.ratio.GetMaximumBin()))), 50 )
+        yMax = self.ratio.GetBinContent(self.ratio.GetMaximumBin())*1.05
+
+
+        yValues = [ self.ratio.GetBinContent(bin) for bin in range( self.ratio.GetNbinsX()+2 ) ]
+        yValues = filter( lambda a: a != 0, yValues )
+        if self.allowUnsymmetricYaxis_:
+            return yMin, yMax
+        else:
+            yValuesAbsDiff = [ abs(x-1) for x in yValues ]
+            yValuesAbsDiff.sort()
+            maxYDiff = yValuesAbsDiff[-1]
+            y = 0.5
+            if maxYDiff < 0.05:
+                y = 0.05
+            if maxYDiff < 0.01:
+                y = 0.01
+
+            return 1-y, 1+y
+
+
+    def draw( self ):
+        self.calculateRatio()
+
+        yMin, yMax = self.getYrange()
 
         # Set ratio properties
         for hist in [ self.ratio, self.ratioSys, self.totalUncert ]:

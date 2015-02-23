@@ -31,7 +31,7 @@ def defaultStyle():
     st.SetLegendBorderSize(0)
     st.SetLegendFillColor( ROOT.kWhite )
 
-    st.SetOptStat(0)
+    #st.SetOptStat(0)
 
     st.SetTextFont( st.GetLabelFont() )
     st.SetTextSize( st.GetLabelSize() )
