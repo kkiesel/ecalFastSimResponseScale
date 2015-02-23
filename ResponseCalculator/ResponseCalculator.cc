@@ -40,12 +40,6 @@ HIST getHist( std::string const & filename, std::string const & histname ) {
     HIST hist( *((HIST*)obj));
     file.Close();
 
-    // smaller eta_gen bins
-    hist.RebinY(15);
-
-    // smaller e/e_gen bins
-    //hist.RebinZ(100);
-
     return hist;
 }
 
@@ -65,17 +59,6 @@ TGraphAsymmErrors modifyScale( const TGraphAsymmErrors& origScale, double mean )
         ) {
             modScale->SetPoint( i, x, mean );
         }
-        /*
-        if( y + modScale->GetErrorYhigh(i) > 1 and y - modScale->GetErrorYlow(i) < 1 ) { // not significant
-            // don't do this if this is a unity-crossing, eg. if the scale is closer to one than the mean
-            if( std::abs( y - 1) > std::abs(mean - y) ) {
-                cout << x << " : " << std::abs( y -1 ) << " \t" << (modScale->GetErrorYhigh(i)+modScale->GetErrorYlow(i))/2 << endl;
-                if( std::abs(  mean -1 ) < (modScale->GetErrorYhigh(i)+modScale->GetErrorYlow(i))/2 ) { // low error
-                    modScale->SetPoint( i, x, mean );
-                }
-            }
-        }
-        */
 
         // The uncertainties will not be used and are therefore set to 0
         modScale->SetPointEYhigh( i, 0 );
@@ -415,6 +398,7 @@ TH3F meanResponseAsH3( const TH3F& h3_fast, const TH3F& h3_full ) {
 }
 
 int main( int argc, char** argv ) {
+    setStyle();
 
     if ( argc < 3 ) {
         std::cerr << "Usage: " << argv[0] << " fastsim.root fullsim.root" << std::endl;
@@ -425,21 +409,31 @@ int main( int argc, char** argv ) {
     // This histogram should be avaiable in both input files
     std::string histname = "ecalScaleFactorCalculator/energyVsEVsEta";
 
-    setStyle();
-//    gErrorIgnoreLevel = kWarning; // Obmitting TCanvas::Print messages
+
+    auto h3_fast = getHist<TH3F>( filenameFast, histname );
+    auto h3_full = getHist<TH3F>( filenameFull, histname );
+
+
+    // smaller eta_gen bins
+    h3_fast.RebinY(15);
+    h3_full.RebinY(15);
+
+    // smaller e/e_gen bins
+    //hist.RebinZ(100);
 
 
 
+//    auto h = meanResponseAsH3( h3_fast, h3_full );
+    auto h = calculateResponse( h3_fast, h3_full );
 
-//    auto h = meanResponseAsH3( getHist<TH3F>( filenameFast, histname ), getHist<TH3F>( filenameFull, histname ) ); // analysis function
-    auto h = calculateResponse( getHist<TH3F>( filenameFast, histname ), getHist<TH3F>( filenameFull, histname ) );
+    bool writeFile = false;
 
-
-/*    TFile file( "scaleECALFastsim_Unity.root", "recreate" );
-    file.cd();
-    h.Write();
-    file.Close();
-*/
+    if( writeFile ) {
+        TFile file( "scaleECALFastsim_Unity.root", "recreate" );
+        file.cd();
+        h.Write();
+        file.Close();
+    }
 }
 
 
