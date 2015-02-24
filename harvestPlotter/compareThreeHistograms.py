@@ -59,7 +59,7 @@ def getAbsFromHist( origHist ):
 
 def drawThree( hfull, hfast, hmod, name ):
     c = ROOT.TCanvas()
-    if not hfull.GetEntries() and not hfast.GetEntries() and not hmod.GetEntries(): return
+    if not hfull.GetEntries() or not hfast.GetEntries() or not hmod.GetEntries(): return
 
     for h in hfull, hfast, hmod:
         h.Sumw2()
@@ -77,9 +77,11 @@ def drawThree( hfull, hfast, hmod, name ):
 
     histoMaximum = max([ h.GetMaximum() for h in hfull,hfast,hmod ])
     for h in hfull, hfast, hmod:
-        h.SetMaximum( 1.01*histoMaximum )
+        h.SetMaximum( 1.02*histoMaximum )
         if "h_ele_PoPtrueVsPt" in name:
             h.SetMinimum(0.9)
+        if "h_scl_EoEtrue" in name:
+            h.GetXaxis().SetRangeUser( 0.7, 1.2 )
 
 
 
@@ -125,12 +127,12 @@ def drawThree( hfull, hfast, hmod, name ):
     #r = ratio.Ratio( "h1/h2", h1, h2 )
     #r.draw(0.5,1.5)
 
-    ROOT.gPad.GetCanvas().SaveAs( "plotsZee/%s.pdf"%name.split("/")[-1] )
+    ROOT.gPad.GetCanvas().SaveAs( "plots/%s.pdf"%name.split("/")[-1] )
 
 def compareThreeHistograms( fullname, fastname, modname, path ):
 
     names = getObjectNamesRec( fastname, path )
-    names = [ path+"/h_ele_PoPtrueVsPt" ]
+    names = filter(lambda x: "scl_EoEtrue_" in x,  names )
 
     for name in names:
         hfull = readHisto( fullname, name )
@@ -146,5 +148,16 @@ if __name__ == "__main__":
     fullname = "../../CMSSW/CMSSW_7_3_0/src/testRunTheMatrix/fast/DQM_V0001_R000000001__Global__CMSSW_X_Y_Z__RECO_full.root"
     modname  = "../../CMSSW/CMSSW_7_3_0/src/testRunTheMatrix/fast/DQM_V0001_R000000001__Global__CMSSW_X_Y_Z__RECO_mod1.root"
     path = "DQMData/Run 1/EgammaV/Run summary/ElectronMcSignalValidator"
+
+    #fastname = "../../CMSSW/CMSSW_7_3_0/src/Analyzer/SimTreeWriter/fastsim_muchStat.root"
+    #fullname = "../../CMSSW/CMSSW_7_3_0/src/Analyzer/SimTreeWriter/fullsim_muchStat.root"
+    #modname = "../../CMSSW/CMSSW_7_3_0/src/Analyzer/SimTreeWriter/fastsim_val.root"
+    #path = "SimTreeProducer"
+
+    #fastname = "../../CMSSW/CMSSW_7_3_0/src/Analyzer/SimTreeWriter/closure_fast.root"
+    #fullname = "../../CMSSW/CMSSW_7_3_0/src/Analyzer/SimTreeWriter/closure_full.root"
+    #modname = "../../CMSSW/CMSSW_7_3_0/src/Analyzer/SimTreeWriter/closure_fast_validation.root"
+    #path = "SimTreeProducer"
+
 
     compareThreeHistograms( fullname, fastname, modname, path )

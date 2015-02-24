@@ -186,14 +186,20 @@ def compareHistograms( files, path="SimTreeProducer" ):
 
 if __name__ == "__main__":
 
-    ##compareHistograms( [ "../../CMSSW/CMSSW_7_3_0/src/Analyzer/SimTreeWriter/fullsim_muchStat.root", "../../CMSSW/CMSSW_7_3_0/src/Analyzer/SimTreeWriter/fastsim_muchStat.root", "../../CMSSW/CMSSW_7_3_0/src/Analyzer/SimTreeWriter/fastsim_val.root" ]  )
-    ##compareHistograms( [ "../../CMSSW/CMSSW_7_3_0/src/validateScaling/closure/fullsim.root", "../../CMSSW/CMSSW_7_3_0/src/validateScaling/closure/fastsim.root", "../../CMSSW/CMSSW_7_3_0/src/validateScaling/closure/fastsim_mod.root" ] )
+    cmsswPath = "../../CMSSW/CMSSW_7_3_0/src/"
 
-    compareHistograms( [ "../../CMSSW/CMSSW_7_3_0/src/validateScaling/closure/fullsim.root", "../../CMSSW/CMSSW_7_3_0/src/validateScaling/closure/fastsim.root", "../../CMSSW/CMSSW_7_3_0/src/validateScaling/closure/fastsim_mod.root" ] )
+    ##compareHistograms( [ cmsswPath+"Analyzer/SimTreeWriter/fullsim_muchStat.root", cmsswPath+"Analyzer/SimTreeWriter/fastsim_muchStat.root", cmsswPath+"Analyzer/SimTreeWriter/fastsim_val.root" ]  )
+    ##compareHistograms( [ cmsswPath+"validateScaling/closure/fullsim.root", cmsswPath+"validateScaling/closure/fastsim.root", cmsswPath+"validateScaling/closure/fastsim_mod.root" ] )
 
-    compareHistograms( [ "../../CMSSW/CMSSW_7_3_0/src/validateScaling/closureAllE/fullsim.root", "../../CMSSW/CMSSW_7_3_0/src/validateScaling/closureAllE/fastsim.root", "../../CMSSW/CMSSW_7_3_0/src/validateScaling/closureAllE/fastsim_mod.root" ] )
+    compareHistograms( [ cmsswPath+"validateScaling/closure/fullsim.root", cmsswPath+"validateScaling/closure/fastsim.root", cmsswPath+"validateScaling/closure/fastsim_mod.root" ] )
 
-    compareHistograms( [ "../../CMSSW/CMSSW_7_3_0/src/validateScaling/enableVtxSmearing/fullsim.root", "../../CMSSW/CMSSW_7_3_0/src/validateScaling/enableVtxSmearing/fastsim.root", "../../CMSSW/CMSSW_7_3_0/src/validateScaling/enableVtxSmearing/fastsim_mod.root" ] )
+    compareHistograms( [ cmsswPath+"validateScaling/closureAllE/fullsim.root", cmsswPath+"validateScaling/closureAllE/fastsim.root", cmsswPath+"validateScaling/closureAllE/fastsim_mod.root" ] )
 
-    compareHistograms( [ "../../CMSSW/CMSSW_7_3_0/src/validateScaling/tracker/fullsim.root", "../../CMSSW/CMSSW_7_3_0/src/validateScaling/tracker/fastsim.root", "../../CMSSW/CMSSW_7_3_0/src/validateScaling/tracker/fastsim_mod.root" ] )
+    compareHistograms( [ cmsswPath+"validateScaling/enableVtxSmearing/fullsim.root", cmsswPath+"validateScaling/enableVtxSmearing/fastsim.root", cmsswPath+"validateScaling/enableVtxSmearing/fastsim_mod.root" ] )
+
+    compareHistograms( [ cmsswPath+"validateScaling/tracker/fullsim.root", cmsswPath+"validateScaling/tracker/fastsim.root", cmsswPath+"validateScaling/tracker/fastsim_mod.root" ] )
+
+    compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FastSim.root" ], "DQMData/Run 1/EgammaV/Run summary/PhotonValidator/Photons" )
+
+    compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FastSim.root" ], "DQMData/Run 1/EgammaV/Run summary/ElectronMcSignalValidator" )
 
