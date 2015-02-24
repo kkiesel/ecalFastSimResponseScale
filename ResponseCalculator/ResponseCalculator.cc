@@ -68,6 +68,24 @@ TGraphAsymmErrors modifyScale( const TGraphAsymmErrors& origScale, double mean )
 }
 
 
+TH1D getSimplifiedScale( const TH1D& h1_fast, const TH1D& h1_full ) {
+    auto h1_scale = *((TH1D*)h1_fast.Clone());
+
+    for( auto binFast=h1_fast.GetNbinsX()+1; binFast>0; binFast-- ) {
+        auto fastInt = h1_fast.Integral( binFast, -1 )/h1_fast.Integral();
+        int binFull;
+        for( binFull=h1_fast.GetNbinsX()+1; binFull>0; binFull-- ) {
+            auto fullInt = h1_full.Integral( binFull, -1 )/h1_full.Integral();
+            if( fullInt > fastInt ) break;
+        }
+        h1_scale.SetBinContent( binFast, h1_fast.GetXaxis()->GetBinCenter(binFull)/h1_fast.GetXaxis()->GetBinCenter(binFast) );
+
+    }
+
+
+
+    return h1_scale;
+}
 
 TGraphAsymmErrors getScaleWithUncertainties( const TH1D& h1_fast, const TH1D& h1_full ) {
     /* For each fastsim energy, calculate the are from -inf to the energy.
@@ -236,7 +254,7 @@ void drawAll( TH1D h1_fast, TH1D h1_full, TGraphAsymmErrors scale, TGraphAsymmEr
 
 
     // "Closure test"
-    //applyScale( h1_fast, h1_full, corrScale, savename );
+    applyScale( h1_fast, h1_full, corrScale, savename );
 
     h1_fast.Scale( 1./h1_fast.GetEntries() );
     h1_full.Scale( 1./h1_full.GetEntries() );
@@ -296,12 +314,13 @@ std::string getBinLabel( const TH3F& h3, int xbin, int ybin ) {
 TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
 
     // This is the output histogram
-    auto h3_scale = *((TH3F*)h3_fast.Clone());
+    auto h3_scale = *((TH3F*)h3_fast.Clone("responseVsEVsEta"));
     h3_scale.Reset();
 
     // For each E_gen, eta_gen bin, extract the one dimensional E_sim/E_gen histogram
     for( int xbin=1; xbin< h3_fast.GetNbinsX()+1; ++xbin ) { // E_gen
         for( int ybin=1; ybin< h3_fast.GetNbinsY()+1; ++ybin ) { // eta_gen
+            if(xbin != 3) continue;
 
             auto name = getBinLabel( h3_fast, xbin, ybin );
 
@@ -314,6 +333,13 @@ TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
             name += ";E/E_{gen}; Normalized Entries  ";
             h1_fast->SetTitle( name.c_str() );
             h1_full->SetTitle( name.c_str() );
+
+            auto h1_scale = getSimplifiedScale( *h1_fast, *h1_full );
+            for( int i=1;i<h1_scale.GetNbinsX()+1;i++){
+                h3_scale.SetBinContent( xbin, ybin, i, h1_scale.GetBinContent(i) );
+            }
+
+/*
             auto scale = getScaleWithUncertainties( *h1_fast, *h1_full );
             auto corrScale = modifyScale( scale, h1_full->GetMean()/h1_fast->GetMean() );
 
@@ -330,8 +356,11 @@ TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
                 h3_scale.SetBinContent( bin, y );
             }
 
+
+
             std::string savename = std::to_string(xbin) + "and" + std::to_string(ybin);
-           drawAll( (TH1D)(*h1_fast), (TH1D)(*h1_full), scale, corrScale, savename );
+            drawAll( (TH1D)(*h1_fast), (TH1D)(*h1_full), scale, corrScale, savename );
+            */
         }
     }
 
@@ -384,11 +413,9 @@ TH3F meanResponseAsH3( const TH3F& h3_fast, const TH3F& h3_full ) {
         float genE = h3_fast.GetXaxis()->GetBinCenter( xbin );
         for( int ybin=1; ybin< h3_scale.GetNbinsY()+1; ++ybin ) { // eta_gen
             float genEta = h3_fast.GetYaxis()->GetBinCenter( ybin );
-            float content = h2.GetBinContent( h2.FindBin( genEta, genE ) );
-            cout << genE << " " << genEta << " " << content << endl;
+            float content = h2.GetBinContent( h2.FindFixBin( genEta, genE ) );
             for( int zbin=1; zbin< h3_scale.GetNbinsZ()+1; ++zbin ) { // energy
-                //h3_scale.SetBinContent( xbin, ybin, zbin, content );
-                h3_scale.SetBinContent( xbin, ybin, zbin, 1 );
+                h3_scale.SetBinContent( xbin, ybin, zbin, content );
             }
         }
     }
@@ -407,29 +434,25 @@ int main( int argc, char** argv ) {
     std::string filenameFull = argv[2];
 
     // This histogram should be avaiable in both input files
-    std::string histname = "ecalScaleFactorCalculator/energyVsEVsEta";
+    std::string histname = "ecalScaleFactorCalculator/responseVsEVsEta_woGaps";
 
 
     auto h3_fast = getHist<TH3F>( filenameFast, histname );
     auto h3_full = getHist<TH3F>( filenameFull, histname );
 
 
-    // smaller eta_gen bins
-    h3_fast.RebinY(15);
-    h3_full.RebinY(15);
-
-    // smaller e/e_gen bins
-    //hist.RebinZ(100);
-
+    // e_gen, eta_gen, response
+    h3_fast.Rebin3D( 1, 80, 1 );
+    h3_full.Rebin3D( 1, 80, 1 );
 
 
 //    auto h = meanResponseAsH3( h3_fast, h3_full );
     auto h = calculateResponse( h3_fast, h3_full );
 
-    bool writeFile = false;
+    bool writeFile = true;
 
     if( writeFile ) {
-        TFile file( "scaleECALFastsim_Unity.root", "recreate" );
+        TFile file( "scaleECALFastsim.root", "recreate" );
         file.cd();
         h.Write();
         file.Close();

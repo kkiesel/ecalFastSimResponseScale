@@ -3,7 +3,9 @@ INCS = -I$(shell root-config --incdir) -I.
 
 WARN = -Wall -Wshadow
 
+
 EXE = ResponseCalculator
+#EXE = Closure
 OBJ = $(EXE).o
 
 all: $(EXE) Makefile
