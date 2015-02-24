@@ -26,6 +26,8 @@ def readHist( filename, histoname ):
     f = ROOT.TFile( filename )
     h = f.Get( histoname )
     h = ROOT.gROOT.CloneObject( h )
+    if not h.GetSumw2N():
+        h.Sumw2()
     h.drawOption_ = ""
     return h
 
@@ -35,9 +37,10 @@ def getObjectNames( filename, path ):
 
     outList = []
     for element in tmpDir.GetListOfKeys():
-        if isinstance( element.ReadObj(), ROOT.TH1 ):
+        obj = element.ReadObj()
+        if isinstance( obj, ROOT.TH1 ):
             outList.append( element.GetName() )
-        elif isinstance( element.ReadObj(), ROOT.TObjString ):
+        elif isinstance( obj, ROOT.TObjString ) or isinstance( obj, ROOT.TTree ):
             pass
         else:
             print "do not know what to do with", element.GetName()
@@ -69,7 +72,9 @@ def absHistWeighted( origHist ):
     origXmin = origHist.GetBinLowEdge(1)
     origXmax = origHist.GetBinLowEdge(origHist.GetNbinsX()+1)
     if origXmin + origXmax:
-        print "cant handle assymetric histograms"
+        if origXmin:
+            print "cant handle assymetric histograms"
+        # else: print "already symetric?"
         return origHist
 
     h = ROOT.TH1F( "", origHist.GetTitle(), int(math.ceil(origNbins/2.)), 0, origXmax )
@@ -93,39 +98,43 @@ def absHistWeighted( origHist ):
     return h
 
 
-def draw( file1, file2, path, name, config ):
+def draw( files, path, name, config ):
 
     c = ROOT.TCanvas()
 
-    if "H130GG" in file1:
+    processTex = ""
+    processName = files[0].split("/")[6]
+    if "H130GG" in files[0]:
         processTex = "H#rightarrow#gamma#gamma   13TeV"
         processName = "Hgg"
-    if "ZEE" in file1:
+    if "ZEE" in files[0]:
         processTex = "Z#rightarrowee  13TeV"
         processName = "Zee"
     processTex += "          FullSim #color[2]{FastSim}"
+    if len(files) > 2:
+        processTex += " #color[4]{FastSim+Mod}"
 
-    h1 = readHist( file1, "{}/{}".format( path, name ) )
-    h2 = readHist( file2, "{}/{}".format( path, name ) )
-    if not round( h1.GetEntries() ) or not round( h2.GetEntries() ): return
-    if not round( h1.Integral() ) or not round( h2.Integral() ): return
+    hists = []
+    for file in files:
+        h = readHist( file, "{}/{}".format( path, name ) )
+        if not round( h.GetEntries()) or not round( h.Integral() ): return
 
-    if isinstance( h1, ROOT.TH2 ):
-        h1.Sumw2()
-        h2.Sumw2()
-        h1 = h1.ProfileX( randomName() )
-        h2 = h2.ProfileX( randomName() )
+        if isinstance( h, ROOT.TH2 ):
+            h = h.ProfileX( randomName() )
+        if "VsEta" in name:
+            h = absHistWeighted( h )
 
-    if "VsEta" in name:
-        h1 = absHistWeighted( h1 )
-        h2 = absHistWeighted( h2 )
+        hists.append( h )
 
-    h2.SetLineColor(2)
+    hists[0].SetName("FullSim")
+    if len(hists) > 1:
+        hists[1].SetName("FastSim")
+        hists[1].SetLineColor(2)
+    if len(hists) > 2:
+        hists[2].SetName("FastSim+Mod")
+        hists[2].SetLineColor( ROOT.kBlue )
 
-    h1.SetName("FullSim")
-    h2.SetName("FastSim")
-
-    for h in h1, h2:
+    for h in hists:
         # constumize histograms
         xmin = h.GetXaxis().GetXmin()
         xmax = h.GetXaxis().GetXmax()
@@ -140,55 +149,57 @@ def draw( file1, file2, path, name, config ):
             h.SetTitle( "" )
 
         h.drawOption_ = "hist e"
-        h.Sumw2()
         h.SetMarkerSize(0)
 
-    for h in h1, h2:
+    for h in hists:
         if not isinstance( h, ROOT.TProfile ) and not "VsEta" in name:
             h.Scale( 1./h.GetEntries() )
 
     m = multiplot.Multiplot()
-    m.add( h1 )
-    m.add( h2 )
+    for h in hists:
+        m.add( h )
     m.Draw()
 
-    #getOwnStatBox( h1, .6,.9 )
-    #getOwnStatBox( h2, .6,.85 )
+    #for i, h in enumerate(hists):
+    #    getOwnStatBox( h, .6,.9-0.05*i )
 
 
     label = ROOT.TLatex()
     label.DrawLatexNDC( .01, .96, "#font[61]{CMS} Private Work   "+processTex )
 
-    r = ratio.Ratio( "Full/Fast  ", h1, h2 )
-    r.draw(0.5,1.5)
+    r = ratio.Ratio( "Full/Fast  ", hists[0], hists[1] )
+    if len(hists)>2:
+        r = ratio.Ratio( "Full/Mod  ", hists[0], hists[2] )
+    r.draw( )
     ROOT.gPad.GetCanvas().SaveAs("plots/%s_%s.pdf"%(processName, name ))
 
-def compareHistograms( file1, file2, path ):
-    names = getObjectNames( file1, path )
-    names = [ "pEResVsEtaAll" ]
+def compareHistograms( files, path="SimTreeProducer" ):
+    names = getObjectNames( files[0], path )
 
     configuration = ConfigParser.SafeConfigParser()
     configuration.read( "histoDefinitions.cfg" )
 
 
     for name in names:
-        draw( file1, file2, path, name, configuration )
+        draw( files, path, name, configuration )
 
 
 if __name__ == "__main__":
 
-    compareHistograms(
-        "../../DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FullSim.root",
-        "../../DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FastSim.root",
-        "DQMData/Run 1/EgammaV/Run summary/pfPhotonValidator/Photons",
-    )
-    #compareHistograms(
-    #    "../../DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FullSim.root",
-    #    "../../DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FastSim.root",
-    #    "DQMData/Run 1/EgammaV/Run summary/pfPhotonValidator/Efficiencies",
-    #)
-    #compareHistograms(
-    #    "../../DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FullSim.root",
-    #    "../../DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FastSim.root",
-    #    "DQMData/Run 1/EgammaV/Run summary/ElectronMcSignalValidator",
-    #)
+    cmsswPath = "../../CMSSW/CMSSW_7_3_0/src/"
+
+    ##compareHistograms( [ cmsswPath+"Analyzer/SimTreeWriter/fullsim_muchStat.root", cmsswPath+"Analyzer/SimTreeWriter/fastsim_muchStat.root", cmsswPath+"Analyzer/SimTreeWriter/fastsim_val.root" ]  )
+    ##compareHistograms( [ cmsswPath+"validateScaling/closure/fullsim.root", cmsswPath+"validateScaling/closure/fastsim.root", cmsswPath+"validateScaling/closure/fastsim_mod.root" ] )
+
+    compareHistograms( [ cmsswPath+"validateScaling/closure/fullsim.root", cmsswPath+"validateScaling/closure/fastsim.root", cmsswPath+"validateScaling/closure/fastsim_mod.root" ] )
+
+    compareHistograms( [ cmsswPath+"validateScaling/closureAllE/fullsim.root", cmsswPath+"validateScaling/closureAllE/fastsim.root", cmsswPath+"validateScaling/closureAllE/fastsim_mod.root" ] )
+
+    compareHistograms( [ cmsswPath+"validateScaling/enableVtxSmearing/fullsim.root", cmsswPath+"validateScaling/enableVtxSmearing/fastsim.root", cmsswPath+"validateScaling/enableVtxSmearing/fastsim_mod.root" ] )
+
+    compareHistograms( [ cmsswPath+"validateScaling/tracker/fullsim.root", cmsswPath+"validateScaling/tracker/fastsim.root", cmsswPath+"validateScaling/tracker/fastsim_mod.root" ] )
+
+    compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FastSim.root" ], "DQMData/Run 1/EgammaV/Run summary/PhotonValidator/Photons" )
+
+    compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FastSim.root" ], "DQMData/Run 1/EgammaV/Run summary/ElectronMcSignalValidator" )
+

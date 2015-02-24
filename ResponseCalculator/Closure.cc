@@ -13,11 +13,20 @@
 #include<TMath.h>
 #include<TProfile2D.h>
 #include<TROOT.h>
+#include<TChain.h>
+#include<TVector3.h>
 
 // user incuded files
 #include "Style.h"
 
 using namespace std;
+
+TChain* getChain( std::string const & filename, std::string const & treename ) {
+    TChain* ch = new TChain( treename.c_str() );
+    ch->AddFile( filename.c_str() );
+    return ch;
+}
+
 
 template <class HIST>
 HIST getHist( std::string const & filename, std::string const & histname ) {
@@ -37,7 +46,7 @@ HIST getHist( std::string const & filename, std::string const & histname ) {
     }
     // Before closing the file, the histogram has to be written on memory
     gROOT->cd();
-    HIST hist( *((HIST*)obj));
+    HIST hist( *((HIST*)obj) );
     file.Close();
 
     return hist;
@@ -68,24 +77,6 @@ TGraphAsymmErrors modifyScale( const TGraphAsymmErrors& origScale, double mean )
 }
 
 
-TH1D getSimplifiedScale( const TH1D& h1_fast, const TH1D& h1_full ) {
-    auto h1_scale = *((TH1D*)h1_fast.Clone());
-
-    for( auto binFast=h1_fast.GetNbinsX()+1; binFast>0; binFast-- ) {
-        auto fastInt = h1_fast.Integral( binFast, -1 )/h1_fast.Integral();
-        int binFull;
-        for( binFull=h1_fast.GetNbinsX()+1; binFull>0; binFull-- ) {
-            auto fullInt = h1_full.Integral( binFull, -1 )/h1_full.Integral();
-            if( fullInt > fastInt ) break;
-        }
-        h1_scale.SetBinContent( binFast, h1_fast.GetXaxis()->GetBinCenter(binFull)/h1_fast.GetXaxis()->GetBinCenter(binFast) );
-
-    }
-
-
-
-    return h1_scale;
-}
 
 TGraphAsymmErrors getScaleWithUncertainties( const TH1D& h1_fast, const TH1D& h1_full ) {
     /* For each fastsim energy, calculate the are from -inf to the energy.
@@ -254,7 +245,7 @@ void drawAll( TH1D h1_fast, TH1D h1_full, TGraphAsymmErrors scale, TGraphAsymmEr
 
 
     // "Closure test"
-    applyScale( h1_fast, h1_full, corrScale, savename );
+    //applyScale( h1_fast, h1_full, corrScale, savename );
 
     h1_fast.Scale( 1./h1_fast.GetEntries() );
     h1_full.Scale( 1./h1_full.GetEntries() );
@@ -264,8 +255,8 @@ void drawAll( TH1D h1_fast, TH1D h1_full, TGraphAsymmErrors scale, TGraphAsymmEr
 
     auto minBin = std::min( h1_fast.FindFirstBinAbove(), h1_full.FindFirstBinAbove() );
     auto maxBin = std::max( h1_fast.FindLastBinAbove(),  h1_full.FindLastBinAbove()  );
-    minBin = 0;
-    maxBin = h1_fast.FindBin(1.05);
+    minBin=0;
+    maxBin=h1_fast.FindBin(1.05);
 
     h1_fast.GetXaxis()->SetRange( minBin, maxBin );
     h1_full.GetXaxis()->SetRange( minBin, maxBin );
@@ -305,8 +296,7 @@ std::string getBinLabel( const TH3F& h3, int xbin, int ybin ) {
     sname << "E^{gen} = " << int(h3.GetXaxis()->GetBinCenter( xbin )) << " GeV, "
           << std::setprecision(3) << h3.GetYaxis()->GetBinLowEdge( ybin )
           << " #leq |#eta^{gen}| < "
-          << std::setprecision(3) << h3.GetYaxis()->GetBinUpEdge( ybin )
-          << ";E/E_{gen}; Normalized Entries  ";
+          << std::setprecision(3) << h3.GetYaxis()->GetBinUpEdge( ybin );
     std::string name = sname.str();
     return name;
 
@@ -315,52 +305,42 @@ std::string getBinLabel( const TH3F& h3, int xbin, int ybin ) {
 TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
 
     // This is the output histogram
-    auto h3_scale = *((TH3F*)h3_fast.Clone("responseVsEVsEta"));
+    auto h3_scale = *((TH3F*)h3_fast.Clone());
     h3_scale.Reset();
 
     // For each E_gen, eta_gen bin, extract the one dimensional E_sim/E_gen histogram
     for( int xbin=1; xbin< h3_fast.GetNbinsX()+1; ++xbin ) { // E_gen
         for( int ybin=1; ybin< h3_fast.GetNbinsY()+1; ++ybin ) { // eta_gen
-            if(xbin != 3) continue;
 
             auto name = getBinLabel( h3_fast, xbin, ybin );
 
             // Create the 1d histograms
-            auto h1_fast = h3_fast.ProjectionZ( "fast", xbin, xbin, ybin, ybin );
-            auto h1_full = h3_full.ProjectionZ( "full", xbin, xbin, ybin, ybin );
+            auto h1_fast = h3_fast.ProjectionZ( (name+" fast").c_str(), xbin, xbin, ybin, ybin );
+            auto h1_full = h3_full.ProjectionZ( (name+" full").c_str(), xbin, xbin, ybin, ybin );
 
             if( !h1_fast->GetEntries() || !h1_full->GetEntries() ) continue;
 
+            name += ";E/E_{gen}; Normalized Entries  ";
             h1_fast->SetTitle( name.c_str() );
             h1_full->SetTitle( name.c_str() );
-
-            auto h1_scale = getSimplifiedScale( *h1_fast, *h1_full );
-            for( int i=1;i<h1_scale.GetNbinsX()+1;i++){
-                h3_scale.SetBinContent( xbin, ybin, i, h1_scale.GetBinContent(i) );
-            }
-
-/*
             auto scale = getScaleWithUncertainties( *h1_fast, *h1_full );
             auto corrScale = modifyScale( scale, h1_full->GetMean()/h1_fast->GetMean() );
 
             // Push back the scale into the output histogram
             for( auto i=0; i<corrScale.GetN(); i++) {
                 double x,y;
-                corrScale.GetPoint( i, x, y );
+                corrScale.GetPoint(i,x,y);
 
                 int bin = h3_scale.FindBin( // in three dimensions
-                        h3_fast.GetXaxis()->GetBinCenter( xbin ),
-                        h3_fast.GetYaxis()->GetBinCenter( ybin ),
-                        x
-                    );
+                    h3_fast.GetXaxis()->GetBinCenter( xbin ),
+                    h3_fast.GetYaxis()->GetBinCenter( ybin ),
+                    x );
+
                 h3_scale.SetBinContent( bin, y );
             }
 
-
-
             std::string savename = std::to_string(xbin) + "and" + std::to_string(ybin);
-            drawAll( (TH1D)(*h1_fast), (TH1D)(*h1_full), scale, corrScale, savename );
-            */
+           drawAll( (TH1D)(*h1_fast), (TH1D)(*h1_full), scale, corrScale, savename );
         }
     }
 
@@ -372,8 +352,8 @@ TH2D drawMeanResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
     // but for analysis purpose only. The mean scale (E_sim/E_gen) is plotted
     // as a function of E_gen and eta_gen
 
-    auto h2_fast = h3_fast.Project3DProfile( "xy_fast" )->ProjectionXY("pxy_fast");
-    auto h2_full = h3_full.Project3DProfile( "xy_full" )->ProjectionXY("pxy_full");
+    auto h2_fast = h3_fast.Project3DProfile( "xy" )->ProjectionXY("pxy");
+    auto h2_full = h3_full.Project3DProfile( "xy2" )->ProjectionXY("pxy2");
 
     h2_full->Divide( h2_fast );
 
@@ -421,6 +401,7 @@ TH3F meanResponseAsH3( const TH3F& h3_fast, const TH3F& h3_full ) {
     }
 
     return h3_scale;
+
 }
 
 int main( int argc, char** argv ) {
@@ -432,30 +413,40 @@ int main( int argc, char** argv ) {
     std::string filenameFast = argv[1];
     std::string filenameFull = argv[2];
 
-    // This histogram should be avaiable in both input files
-    std::string histname = "ecalScaleFactorCalculator/responseVsEVsEta_woGaps";
+    auto h3d_scale = getHist<TH3F>( "scaleECALFastsim.root", "responseVsEVsEta" );
+    auto fastTree = getChain( argv[1], "SimTreeProducer/SimTree" );
+    auto fullTree = getChain( argv[2], "SimTreeProducer/SimTree" );
+
+    TVector3* genVec = 0;
+    TVector3* simVec = 0;
+
+    fastTree->SetBranchAddress( "genVec", &genVec );
+    fastTree->SetBranchAddress( "hitVec", &simVec );
+    TH1F h1_fastRes("h1_fastRes", "", 100, 0.95, 1.01 );
+    TH1F h1_fullRes("h1_fullRes", "", 100, 0.95, 1.01 );
 
 
-    auto h3_fast = getHist<TH3F>( filenameFast, histname );
-    auto h3_full = getHist<TH3F>( filenameFull, histname );
-
-
-    // e, eta, response
-    h3_fast.Rebin3D( 1, 80, 1 );
-    h3_full.Rebin3D( 1, 80, 1 );
-
-
-//    auto h = meanResponseAsH3( h3_fast, h3_full );
-    auto h = calculateResponse( h3_fast, h3_full );
-
-    bool writeFile = true;
-
-    if( writeFile ) {
-        TFile file( "scaleECALFastsim.root", "recreate" );
-        file.cd();
-        h.Write();
-        file.Close();
+    for( int i=0; i<fastTree->GetEntries(); i++ ) {
+        fastTree->GetEntry(i);
+        float genE = genVec->Mag();
+        float genEta = genVec->Eta();
+        float oldRes = simVec->Mag() / genVec->Mag();
+        float scale = h3d_scale.GetBinContent( h3d_scale.FindFixBin( genE, genEta, oldRes ) );
+        float newRes = oldRes * scale;
+        //cout << genE << "\t" << genEta << "\t" << oldRes << "\t" << scale << endl;
+        if( genVec->Eta() < 0.5 )
+            h1_fastRes.Fill( newRes );
     }
+    fullTree->Draw("hitVec.Mag()/genVec.Mag()>>h1_fullRes", "genVec.Eta()<0.5" );
+
+    h1_fullRes.Draw();
+    h1_fastRes.SetLineColor(2);
+    h1_fastRes.Scale( h1_fullRes.Integral() / h1_fastRes.Integral() );
+    h1_fastRes.Draw("same");
+    gPad->SaveAs("test.pdf");
+
+
+
 }
 
 
