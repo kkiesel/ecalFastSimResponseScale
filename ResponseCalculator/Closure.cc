@@ -77,6 +77,27 @@ TGraphAsymmErrors modifyScale( const TGraphAsymmErrors& origScale, double mean )
 }
 
 
+TH1D getSimplifiedScale( const TH1D& h1_fast, const TH1D& h1_full ) {
+    auto h1_scale = *((TH1D*)h1_fast.Clone());
+
+    float intFast = h1_fast.Integral();
+    float intFull = h1_full.Integral();
+
+    for( auto binFast=h1_fast.GetNbinsX()+1; binFast>0; binFast-- ) {
+        auto fastInt = h1_fast.Integral( binFast, -1 )/intFast;
+        int binFull;
+        for( binFull=h1_fast.GetNbinsX()+1; binFull>0; binFull-- ) {
+            auto fullInt = h1_full.Integral( binFull, -1 )/intFull;
+            if( fullInt > fastInt ) break;
+        }
+        h1_scale.SetBinContent( binFast, h1_fast.GetXaxis()->GetBinCenter(binFull)/h1_fast.GetXaxis()->GetBinCenter(binFast) );
+
+    }
+
+
+
+    return h1_scale;
+}
 
 TGraphAsymmErrors getScaleWithUncertainties( const TH1D& h1_fast, const TH1D& h1_full ) {
     /* For each fastsim energy, calculate the are from -inf to the energy.
@@ -264,8 +285,8 @@ void drawAll( TH1D h1_fast, TH1D h1_full, TGraphAsymmErrors scale, TGraphAsymmEr
     scale.GetXaxis()->SetLimits( h1_fast.GetBinLowEdge( minBin ),
         h1_fast.GetBinLowEdge( maxBin+1 ));
 
-    scale.SetMaximum(2);
-    scale.SetMinimum(0);
+    scale.SetMaximum(1.1);
+    scale.SetMinimum(0.9);
     //scale.GetYaxis()->SetNdivisions( 2, 0, 2 );
     scale.SetMarkerStyle( kFullDotMedium );
     corrScale.SetLineColor(6);
@@ -305,7 +326,7 @@ std::string getBinLabel( const TH3F& h3, int xbin, int ybin ) {
 TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
 
     // This is the output histogram
-    auto h3_scale = *((TH3F*)h3_fast.Clone());
+    auto h3_scale = *((TH3F*)h3_fast.Clone("responseVsEVsEta"));
     h3_scale.Reset();
 
     // For each E_gen, eta_gen bin, extract the one dimensional E_sim/E_gen histogram
@@ -323,6 +344,14 @@ TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
             name += ";E/E_{gen}; Normalized Entries  ";
             h1_fast->SetTitle( name.c_str() );
             h1_full->SetTitle( name.c_str() );
+
+/*
+            auto h1_scale = getSimplifiedScale( *h1_fast, *h1_full );
+            for( int i=1;i<h1_scale.GetNbinsX()+1;i++){
+                h3_scale.SetBinContent( xbin, ybin, i, h1_scale.GetBinContent(i) );
+            }
+*/
+
             auto scale = getScaleWithUncertainties( *h1_fast, *h1_full );
             auto corrScale = modifyScale( scale, h1_full->GetMean()/h1_fast->GetMean() );
 
@@ -330,17 +359,12 @@ TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
             for( auto i=0; i<corrScale.GetN(); i++) {
                 double x,y;
                 corrScale.GetPoint(i,x,y);
-
-                int bin = h3_scale.FindBin( // in three dimensions
-                    h3_fast.GetXaxis()->GetBinCenter( xbin ),
-                    h3_fast.GetYaxis()->GetBinCenter( ybin ),
-                    x );
-
-                h3_scale.SetBinContent( bin, y );
+                // i+1 corresponds to the z-bin
+                h3_scale.SetBinContent( xbin, ybin, i+1, y );
             }
 
             std::string savename = std::to_string(xbin) + "and" + std::to_string(ybin);
-           drawAll( (TH1D)(*h1_fast), (TH1D)(*h1_full), scale, corrScale, savename );
+            drawAll( (TH1D)(*h1_fast), (TH1D)(*h1_full), scale, corrScale, savename );
         }
     }
 
@@ -404,7 +428,45 @@ TH3F meanResponseAsH3( const TH3F& h3_fast, const TH3F& h3_full ) {
 
 }
 
-int main( int argc, char** argv ) {
+TH3F fill3dHist_simple( TChain& chain ) {
+    //auto h = TH3F("responseVsEVsEta", ";E_{gen};#eta_{gen};E/E_{gen}", 100, 5, 1005, 400, 0, 3.2, 100, 0.9, 1.05 );
+    auto h = TH3F("responseVsEVsEta", ";E_{gen};#eta_{gen};E/E_{gen}", 100, 5, 1005, 400, 0, 3.2, 2000, 0, 1.05 );
+    h.Rebin3D(1, 10, 1 );
+
+    float e, eta, r;
+
+    chain.SetBranchAddress( "e", &e );
+    chain.SetBranchAddress( "r", &r );
+    chain.SetBranchAddress( "eta", &eta );
+
+    for( int i=0; i<chain.GetEntries(); i++ ) {
+        chain.GetEntry(i);
+        h.Fill( e, eta, r, 1 );
+    }
+    return h;
+}
+
+TH3F fill3dHist( TChain& chain ) {
+    auto h = TH3F("responseVsEVsEta", ";E_{gen};#eta_{gen};E/E_{gen}", 100, 5, 1005, 400, 0, 3.2, 100, 0.9, 1.05 );
+    //auto h = TH3F("responseVsEVsEta", ";E_{gen};#eta_{gen};E/E_{gen}", 100, 5, 1005, 400, 0, 3.2, 2000, 0, 1.05 );
+    h.Rebin3D(1, 10, 1 );
+    TVector3* genVec = 0;
+    TVector3* simVec = 0;
+    chain.SetBranchAddress( "genVec", &genVec );
+    chain.SetBranchAddress( "hitVec", &simVec );
+    for( int i=0; i<chain.GetEntries(); i++ ) {
+        chain.GetEntry(i);
+        float genE = genVec->Mag();
+        float genEta = genVec->Eta();
+        float oldRes = simVec->Mag() / genVec->Mag();
+        h.Fill( genE, genEta, oldRes );
+    }
+    return h;
+}
+
+
+
+int main_old( int argc, char** argv ) {
     setStyle();
 
     if ( argc < 3 ) {
@@ -413,17 +475,26 @@ int main( int argc, char** argv ) {
     std::string filenameFast = argv[1];
     std::string filenameFull = argv[2];
 
-    auto h3d_scale = getHist<TH3F>( "scaleECALFastsim.root", "responseVsEVsEta" );
+
     auto fastTree = getChain( argv[1], "SimTreeProducer/SimTree" );
     auto fullTree = getChain( argv[2], "SimTreeProducer/SimTree" );
+    const char* cutString = "hitVec.Mag()/genVec.Mag() > 0.9 &&  genVec.Eta()>1.5";
+    //const char* cutString = "genVec.Eta()>0.0035 && genVec.Eta()<1.475";
+    //const char* cutString = "genVec.Eta()>0.0035 && genVec.Eta()<1.475";
+    fastTree = (TChain*)fastTree->CopyTree( cutString );
+    fullTree = (TChain*)fullTree->CopyTree( cutString );
+
+
+    auto h3d_scale = calculateResponse( fill3dHist( *fastTree ), fill3dHist( *fullTree ) );
+    //auto h3d_scale = getHist<TH3F>( "scaleECALFastsim.root", "responseVsEVsEta" );
 
     TVector3* genVec = 0;
     TVector3* simVec = 0;
 
     fastTree->SetBranchAddress( "genVec", &genVec );
     fastTree->SetBranchAddress( "hitVec", &simVec );
-    TH1F h1_fastRes("h1_fastRes", "", 100, 0.95, 1.01 );
-    TH1F h1_fullRes("h1_fullRes", "", 100, 0.95, 1.01 );
+    TH1F h1_fastRes("h1_fastRes", "", 100, 0.9, 1.01 );
+    TH1F h1_fullRes("h1_fullRes", "", 100, 0.9, 1.01 );
 
 
     for( int i=0; i<fastTree->GetEntries(); i++ ) {
@@ -433,12 +504,13 @@ int main( int argc, char** argv ) {
         float oldRes = simVec->Mag() / genVec->Mag();
         float scale = h3d_scale.GetBinContent( h3d_scale.FindFixBin( genE, genEta, oldRes ) );
         float newRes = oldRes * scale;
-        //cout << genE << "\t" << genEta << "\t" << oldRes << "\t" << scale << endl;
-        if( genVec->Eta() < 0.5 )
-            h1_fastRes.Fill( newRes );
+        h1_fastRes.Fill( newRes );
     }
-    fullTree->Draw("hitVec.Mag()/genVec.Mag()>>h1_fullRes", "genVec.Eta()<0.5" );
+    auto fullTree2 = getChain( argv[2], "SimTreeProducer/SimTree" );
+    fullTree2 = (TChain*)fullTree2->CopyTree( cutString );
+    fullTree2->Draw("hitVec.Mag()/genVec.Mag()>>h1_fullRes", "1", "goff" );
 
+    TCanvas c1;
     h1_fullRes.Draw();
     h1_fastRes.SetLineColor(2);
     h1_fastRes.Scale( h1_fullRes.Integral() / h1_fastRes.Integral() );
@@ -446,6 +518,46 @@ int main( int argc, char** argv ) {
     gPad->SaveAs("test.pdf");
 
 
+    return 0;
+
+}
+
+int main( int argc, char** argv ) {
+    setStyle();
+
+    auto fastTree = getChain( "../../CMSSW/CMSSW_7_3_0/src/Analyzer/ECALScaleFactorCalculator/3d_fast.root_E30.root", "ecalScaleFactorCalculator/responseTree" );
+    auto fullTree = getChain( "../../CMSSW/CMSSW_7_3_0/src/Analyzer/ECALScaleFactorCalculator/3d_full.root_E30.root", "ecalScaleFactorCalculator/responseTree" );
+//    auto h3d_scale = calculateResponse( fill3dHist_simple( *fastTree ), fill3dHist_simple( *fullTree ) );
+    auto h3d_scale = getHist<TH3F>( "scaleECALFastsim.root", "responseVsEVsEta" );
+
+
+
+
+    float e, eta, r;
+
+    fastTree->SetBranchAddress( "e", &e );
+    fastTree->SetBranchAddress( "r", &r );
+    fastTree->SetBranchAddress( "eta", &eta );
+    TH1F h1_fastRes("h1_fastRes", "", 100, 0.9, 1.01 );
+    TH1F h1_fullRes("h1_fullRes", "", 100, 0.9, 1.01 );
+
+
+    for( int i=0; i<fastTree->GetEntries(); i++ ) {
+        fastTree->GetEntry(i);
+        float scale = h3d_scale.GetBinContent( h3d_scale.FindFixBin( e,eta,r ) );
+        float newRes = r * scale;
+        h1_fastRes.Fill( newRes );
+    }
+    fullTree->Draw("r>>h1_fullRes", "1", "goff" );
+
+    TCanvas c1;
+    h1_fullRes.Draw();
+    h1_fastRes.SetLineColor(2);
+    h1_fastRes.Scale( h1_fullRes.Integral() / h1_fastRes.Integral() );
+    h1_fastRes.Draw("same");
+    gPad->SaveAs("test.pdf");
+
+    return 0;
 
 }
 

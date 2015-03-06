@@ -14,9 +14,13 @@ def randomName():
 class Ratio:
     def __init__( self, title, numerator, denominator, sysHisto=None ):
         if isinstance( numerator, ROOT.TProfile ):
-            numerator = numerator.ProjectionX( randomName() )
+            numerator_cl = numerator.ProjectionX( randomName() )
+            numerator_cl.SetLineColor( numerator.GetLineColor() )
+            numerator = numerator_cl
         if isinstance( denominator, ROOT.TProfile ):
-            denominator = denominator.ProjectionX( randomName() )
+            denominator_cl = denominator.ProjectionX( randomName() )
+            denominator_cl.SetLineColor( denominator.GetLineColor() )
+            denominator = denominator_cl
 
         self.title = title
         self.numerator = numerator
@@ -102,6 +106,7 @@ class Ratio:
         self.totalUncert.SetFillStyle(3002)
         self.totalUncert.SetMarkerSize(0)
         self.totalUncert.SetFillColor(2)
+        self.totalUncert.SetFillColor( self.denominator.GetLineColor() )
         self.totalUncert.SetLineColor(0)
 
 
@@ -109,7 +114,6 @@ class Ratio:
         for ding in ROOT.gPad.GetListOfPrimitives():
             if isinstance( ding, ROOT.TH1 ) or isinstance( ding, ROOT.THStack ):
                 xaxis = ding.GetXaxis()
-                xaxis.SetNdivisions(0,50,0, True)
                 xaxis.SetLabelSize(0)
                 xaxis.SetLabelColor(0)
                 xaxis.SetLabelOffset(1000)

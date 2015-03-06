@@ -110,6 +110,8 @@ def draw( files, path, name, config ):
     if "ZEE" in files[0]:
         processTex = "Z#rightarrowee  13TeV"
         processName = "Zee"
+    if "closure" in files[0]:
+        processTex = "Single e^{#minus}"
     processTex += "          FullSim #color[2]{FastSim}"
     if len(files) > 2:
         processTex += " #color[4]{FastSim+Mod}"
@@ -151,6 +153,7 @@ def draw( files, path, name, config ):
         h.drawOption_ = "hist e"
         h.SetMarkerSize(0)
 
+
     for h in hists:
         if not isinstance( h, ROOT.TProfile ) and not "VsEta" in name:
             h.Scale( 1./h.GetEntries() )
@@ -165,12 +168,15 @@ def draw( files, path, name, config ):
 
 
     label = ROOT.TLatex()
-    label.DrawLatexNDC( .01, .96, "#font[61]{CMS} Private Work   "+processTex )
+    label.DrawLatexNDC( .01, .96, "#font[61]{CMS} #lower[-0.2]{#it{#scale[0.6]{#splitline{Private Work}{Simulation}}}}  "+processTex )
 
-    r = ratio.Ratio( "Full/Fast  ", hists[0], hists[1] )
-    if len(hists)>2:
+    if len(hists) == 2:
+        r = ratio.Ratio( "Full/Fast  ", hists[0], hists[1] )
+    else:
         r = ratio.Ratio( "Full/Mod  ", hists[0], hists[2] )
-    r.draw( )
+    r.draw()
+    if len(hists)>2:
+        processName = "modIncl_"+processName
     ROOT.gPad.GetCanvas().SaveAs("plots/%s_%s.pdf"%(processName, name ))
 
 def compareHistograms( files, path="SimTreeProducer" ):
@@ -190,16 +196,18 @@ if __name__ == "__main__":
 
     ##compareHistograms( [ cmsswPath+"Analyzer/SimTreeWriter/fullsim_muchStat.root", cmsswPath+"Analyzer/SimTreeWriter/fastsim_muchStat.root", cmsswPath+"Analyzer/SimTreeWriter/fastsim_val.root" ]  )
     ##compareHistograms( [ cmsswPath+"validateScaling/closure/fullsim.root", cmsswPath+"validateScaling/closure/fastsim.root", cmsswPath+"validateScaling/closure/fastsim_mod.root" ] )
+    #compareHistograms( [ cmsswPath+"validateScaling/enableVtxSmearing/fullsim.root", cmsswPath+"validateScaling/enableVtxSmearing/fastsim.root", cmsswPath+"validateScaling/enableVtxSmearing/fastsim_mod.root" ] )
+    #compareHistograms( [ cmsswPath+"validateScaling/tracker/fullsim.root", cmsswPath+"validateScaling/tracker/fastsim.root", cmsswPath+"validateScaling/tracker/fastsim_mod.root" ] )
 
+
+    # closure single E
     compareHistograms( [ cmsswPath+"validateScaling/closure/fullsim.root", cmsswPath+"validateScaling/closure/fastsim.root", cmsswPath+"validateScaling/closure/fastsim_mod.root" ] )
 
+    # closure full E
     compareHistograms( [ cmsswPath+"validateScaling/closureAllE/fullsim.root", cmsswPath+"validateScaling/closureAllE/fastsim.root", cmsswPath+"validateScaling/closureAllE/fastsim_mod.root" ] )
 
-    compareHistograms( [ cmsswPath+"validateScaling/enableVtxSmearing/fullsim.root", cmsswPath+"validateScaling/enableVtxSmearing/fastsim.root", cmsswPath+"validateScaling/enableVtxSmearing/fastsim_mod.root" ] )
-
-    compareHistograms( [ cmsswPath+"validateScaling/tracker/fullsim.root", cmsswPath+"validateScaling/tracker/fastsim.root", cmsswPath+"validateScaling/tracker/fastsim_mod.root" ] )
-
-    compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FastSim.root" ], "DQMData/Run 1/EgammaV/Run summary/PhotonValidator/Photons" )
-
-    compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FastSim.root" ], "DQMData/Run 1/EgammaV/Run summary/ElectronMcSignalValidator" )
+    #compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FastSim.root" ], "DQMData/Run 1/EgammaV/Run summary/PhotonValidator/Photons" )
+    #compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FastSim.root", cmsswPath+"testRunTheMatrix/Hgg/DQM_V0001_R000000001__Global__CMSSW_X_Y_Z__RECO.root" ], "DQMData/Run 1/EgammaV/Run summary/PhotonValidator/Photons" )
+    #compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FastSim.root" ], "DQMData/Run 1/EgammaV/Run summary/ElectronMcSignalValidator" )
+    #compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FastSim.root", cmsswPath+"testRunTheMatrix/fast/DQM_V0001_R000000001__Global__CMSSW_X_Y_Z__RECO_mod1.root" ], "DQMData/Run 1/EgammaV/Run summary/ElectronMcSignalValidator" )
 
