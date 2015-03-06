@@ -37,7 +37,7 @@ HIST getHist( std::string const & filename, std::string const & histname ) {
     }
     // Before closing the file, the histogram has to be written on memory
     gROOT->cd();
-    HIST hist( *((HIST*)obj));
+    HIST hist( *((HIST*)obj) );
     file.Close();
 
     return hist;
@@ -71,11 +71,14 @@ TGraphAsymmErrors modifyScale( const TGraphAsymmErrors& origScale, double mean )
 TH1D getSimplifiedScale( const TH1D& h1_fast, const TH1D& h1_full ) {
     auto h1_scale = *((TH1D*)h1_fast.Clone());
 
+    float intFast = h1_fast.Integral();
+    float intFull = h1_full.Integral();
+
     for( auto binFast=h1_fast.GetNbinsX()+1; binFast>0; binFast-- ) {
-        auto fastInt = h1_fast.Integral( binFast, -1 )/h1_fast.Integral();
+        auto fastInt = h1_fast.Integral( binFast, -1 )/intFast;
         int binFull;
         for( binFull=h1_fast.GetNbinsX()+1; binFull>0; binFull-- ) {
-            auto fullInt = h1_full.Integral( binFull, -1 )/h1_full.Integral();
+            auto fullInt = h1_full.Integral( binFull, -1 )/intFull;
             if( fullInt > fastInt ) break;
         }
         h1_scale.SetBinContent( binFast, h1_fast.GetXaxis()->GetBinCenter(binFull)/h1_fast.GetXaxis()->GetBinCenter(binFast) );
@@ -245,6 +248,13 @@ void applyScale( TH1D h1_fast, TH1D h1_full, const TGraphAsymmErrors& scale, con
     can->cd();
     h1_fast.Draw("hist");
     h1_full.Draw("hist same");
+    /*
+    float ma = h1_fast.GetMean();
+    float ea = h1_fast.GetMeanError();
+    float mu = h1_full.GetMean();
+    float eu = h1_full.GetMeanError();
+    cout << "                                                                                    " << h1_fast.GetMean() / h1_full.GetMean() << std::endl;
+    */
 
     can->SaveAs( (std::string("plots/")+savename+"_closure.pdf").c_str() );
 }
@@ -264,8 +274,27 @@ void drawAll( TH1D h1_fast, TH1D h1_full, TGraphAsymmErrors scale, TGraphAsymmEr
 
     auto minBin = std::min( h1_fast.FindFirstBinAbove(), h1_full.FindFirstBinAbove() );
     auto maxBin = std::max( h1_fast.FindLastBinAbove(),  h1_full.FindLastBinAbove()  );
-    minBin = 0;
+    minBin = 1;
     maxBin = h1_fast.FindBin(1.05);
+
+    scale.SetMaximum(1.05);
+    scale.SetMinimum(0.95);
+    scale.SetMaximum(1.1);
+    scale.SetMinimum(0.9);
+    if( savename == "1and2" ) {
+        minBin = h1_fast.FindBin(0.95);
+        maxBin = h1_fast.FindBin(1.01);
+    } else if( savename == "1and30" ) {
+        minBin = h1_fast.FindBin(0.65);
+        maxBin = h1_fast.FindBin(1.0);
+    } else if( savename == "2and2" ) {
+        minBin = h1_fast.FindBin(0.94);
+        maxBin = h1_fast.FindBin(1.01);
+    } else if( savename == "1and30" ) {
+        minBin = h1_fast.FindBin(0.6);
+        maxBin = h1_fast.FindBin(1.0);
+    }
+
 
     h1_fast.GetXaxis()->SetRange( minBin, maxBin );
     h1_full.GetXaxis()->SetRange( minBin, maxBin );
@@ -273,8 +302,6 @@ void drawAll( TH1D h1_fast, TH1D h1_full, TGraphAsymmErrors scale, TGraphAsymmEr
     scale.GetXaxis()->SetLimits( h1_fast.GetBinLowEdge( minBin ),
         h1_fast.GetBinLowEdge( maxBin+1 ));
 
-    scale.SetMaximum(2);
-    scale.SetMinimum(0);
     //scale.GetYaxis()->SetNdivisions( 2, 0, 2 );
     scale.SetMarkerStyle( kFullDotMedium );
     corrScale.SetLineColor(6);
@@ -302,11 +329,10 @@ std::string getBinLabel( const TH3F& h3, int xbin, int ybin ) {
     // Get name (bin ranges) for this specific histogram
     // e.g. E=20GeV, 0.2 < eta < 0.4
     std::ostringstream sname;
-    sname << "E^{gen} = " << int(h3.GetXaxis()->GetBinCenter( xbin )) << " GeV, "
+    sname << "E_{true} = " << int(h3.GetXaxis()->GetBinCenter( xbin )) << " GeV, "
           << std::setprecision(3) << h3.GetYaxis()->GetBinLowEdge( ybin )
-          << " #leq |#eta^{gen}| < "
-          << std::setprecision(3) << h3.GetYaxis()->GetBinUpEdge( ybin )
-          << ";E/E_{gen}; Normalized Entries  ";
+          << " #leq |#eta_{true}| < "
+          << std::setprecision(3) << h3.GetYaxis()->GetBinUpEdge( ybin );
     std::string name = sname.str();
     return name;
 
@@ -321,7 +347,6 @@ TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
     // For each E_gen, eta_gen bin, extract the one dimensional E_sim/E_gen histogram
     for( int xbin=1; xbin< h3_fast.GetNbinsX()+1; ++xbin ) { // E_gen
         for( int ybin=1; ybin< h3_fast.GetNbinsY()+1; ++ybin ) { // eta_gen
-            if(xbin != 3) continue;
 
             auto name = getBinLabel( h3_fast, xbin, ybin );
 
@@ -331,36 +356,30 @@ TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
 
             if( !h1_fast->GetEntries() || !h1_full->GetEntries() ) continue;
 
+            name += ";E_{sim}/E_{true}; Normalized Entries  ";
             h1_fast->SetTitle( name.c_str() );
             h1_full->SetTitle( name.c_str() );
 
+/*
             auto h1_scale = getSimplifiedScale( *h1_fast, *h1_full );
             for( int i=1;i<h1_scale.GetNbinsX()+1;i++){
                 h3_scale.SetBinContent( xbin, ybin, i, h1_scale.GetBinContent(i) );
             }
+*/
 
-/*
             auto scale = getScaleWithUncertainties( *h1_fast, *h1_full );
             auto corrScale = modifyScale( scale, h1_full->GetMean()/h1_fast->GetMean() );
 
             // Push back the scale into the output histogram
             for( auto i=0; i<corrScale.GetN(); i++) {
                 double x,y;
-                corrScale.GetPoint( i, x, y );
-
-                int bin = h3_scale.FindBin( // in three dimensions
-                        h3_fast.GetXaxis()->GetBinCenter( xbin ),
-                        h3_fast.GetYaxis()->GetBinCenter( ybin ),
-                        x
-                    );
-                h3_scale.SetBinContent( bin, y );
+                corrScale.GetPoint(i,x,y);
+                // i+1 corresponds to the z-bin
+                h3_scale.SetBinContent( xbin, ybin, i+1, y );
             }
-
-
 
             std::string savename = std::to_string(xbin) + "and" + std::to_string(ybin);
             drawAll( (TH1D)(*h1_fast), (TH1D)(*h1_full), scale, corrScale, savename );
-            */
         }
     }
 
@@ -440,9 +459,9 @@ int main( int argc, char** argv ) {
     auto h3_full = getHist<TH3F>( filenameFull, histname );
 
 
-    // e, eta, response
-    h3_fast.Rebin3D( 1, 80, 1 );
-    h3_full.Rebin3D( 1, 80, 1 );
+    // e_gen, eta_gen, response
+    h3_fast.Rebin3D( 1, 10, 1 );
+    h3_full.Rebin3D( 1, 10, 1 );
 
 
 //    auto h = meanResponseAsH3( h3_fast, h3_full );

@@ -23,4 +23,5 @@ clean:
 	@rm -f *.cxx lib*h # remove rootcints generated source and header files
 	@rm -f AutoDict_* *_h.d *_cc.d *_C.d # cint generated files
 
-
+cp:
+	cp plots/1and30.pdf plots/2and2.pdf ../../documents/presentations/2015-03-dpg/
