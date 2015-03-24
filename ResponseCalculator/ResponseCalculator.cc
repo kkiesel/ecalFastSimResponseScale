@@ -274,26 +274,11 @@ void drawAll( TH1D h1_fast, TH1D h1_full, TGraphAsymmErrors scale, TGraphAsymmEr
 
     auto minBin = std::min( h1_fast.FindFirstBinAbove(), h1_full.FindFirstBinAbove() );
     auto maxBin = std::max( h1_fast.FindLastBinAbove(),  h1_full.FindLastBinAbove()  );
-    minBin = 1;
+    minBin = h1_fast.FindBin(0.7);
     maxBin = h1_fast.FindBin(1.05);
 
-    scale.SetMaximum(1.05);
-    scale.SetMinimum(0.95);
     scale.SetMaximum(1.1);
     scale.SetMinimum(0.9);
-    if( savename == "1and2" ) {
-        minBin = h1_fast.FindBin(0.95);
-        maxBin = h1_fast.FindBin(1.01);
-    } else if( savename == "1and30" ) {
-        minBin = h1_fast.FindBin(0.65);
-        maxBin = h1_fast.FindBin(1.0);
-    } else if( savename == "2and2" ) {
-        minBin = h1_fast.FindBin(0.94);
-        maxBin = h1_fast.FindBin(1.01);
-    } else if( savename == "1and30" ) {
-        minBin = h1_fast.FindBin(0.6);
-        maxBin = h1_fast.FindBin(1.0);
-    }
 
 
     h1_fast.GetXaxis()->SetRange( minBin, maxBin );
@@ -381,6 +366,7 @@ TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
             std::string savename = std::to_string(xbin) + "and" + std::to_string(ybin);
             drawAll( (TH1D)(*h1_fast), (TH1D)(*h1_full), scale, corrScale, savename );
         }
+    return h3_scale;// only first e bin
     }
 
     return h3_scale;
@@ -461,14 +447,14 @@ int main( int argc, char** argv ) {
 
 
     // e_gen, eta_gen, response
-    h3_fast.Rebin3D( 1, 10, 1 );
-    h3_full.Rebin3D( 1, 10, 1 );
+    h3_fast.Rebin3D( 1, 100, 10 );
+    h3_full.Rebin3D( 1, 100, 10 );
 
 
 //    auto h = meanResponseAsH3( h3_fast, h3_full );
     auto h = calculateResponse( h3_fast, h3_full );
 
-    bool writeFile = true;
+    bool writeFile = false;
 
     if( writeFile ) {
         TFile file( "scaleECALFastsim.root", "recreate" );
