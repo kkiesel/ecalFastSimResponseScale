@@ -94,7 +94,7 @@ class Ratio:
         # Set ratio properties
         for hist in [ self.ratio, self.ratioSys, self.totalUncert ]:
             hist.GetYaxis().SetNdivisions(2, 0, 2)
-            hist.SetTitleOffset(.9, "Y")
+            hist.SetTitleOffset(1.2, "Y")
             hist.SetYTitle( self.title )
             hist.SetMinimum( yMin )
             hist.SetMaximum( yMax )

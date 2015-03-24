@@ -14,10 +14,10 @@ def defaultStyle():
     st.SetPadColor( ROOT.kWhite )
 
     # Margins:
-    st.SetPadTopMargin(0.05)
-    #st.SetPadBottomMargin(0.13)
-    st.SetPadLeftMargin(0.13)
-    st.SetPadRightMargin(0.03)
+    st.SetPadTopMargin(0.06)
+    st.SetPadBottomMargin(0.12)
+    st.SetPadLeftMargin(0.16)
+    st.SetPadRightMargin(0.04)
 
     st.SetTitleFillColor( ROOT.kWhite )
     st.SetTitleBorderSize( 0 )
@@ -32,6 +32,10 @@ def defaultStyle():
     st.SetLegendFillColor( ROOT.kWhite )
 
     st.SetOptStat(0)
+
+    textSize = 0.05
+    st.SetLabelSize( textSize, "xyz" )
+    st.SetTitleSize( textSize, "xyz" )
 
     st.SetTextFont( st.GetLabelFont() )
     st.SetTextSize( st.GetLabelSize() )

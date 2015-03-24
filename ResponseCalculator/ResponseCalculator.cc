@@ -336,8 +336,8 @@ TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
             auto name = getBinLabel( h3_fast, xbin, ybin );
 
             // Create the 1d histograms
-            auto h1_fast = h3_fast.ProjectionZ( (name+" fast").c_str(), xbin, xbin, ybin, ybin );
-            auto h1_full = h3_full.ProjectionZ( (name+" full").c_str(), xbin, xbin, ybin, ybin );
+            auto h1_fast = h3_fast.ProjectionZ( "fast", xbin, xbin, ybin, ybin );
+            auto h1_full = h3_full.ProjectionZ( "full", xbin, xbin, ybin, ybin );
 
             if( !h1_fast->GetEntries() || !h1_full->GetEntries() ) continue;
 
@@ -377,8 +377,8 @@ TH2D drawMeanResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
     // but for analysis purpose only. The mean scale (E_sim/E_gen) is plotted
     // as a function of E_gen and eta_gen
 
-    auto h2_fast = h3_fast.Project3DProfile( "xy" )->ProjectionXY("pxy");
-    auto h2_full = h3_full.Project3DProfile( "xy2" )->ProjectionXY("pxy2");
+    auto h2_fast = h3_fast.Project3DProfile( "xy_fast" )->ProjectionXY("pxy_fast");
+    auto h2_full = h3_full.Project3DProfile( "xy_full" )->ProjectionXY("pxy_full");
 
     h2_full->Divide( h2_fast );
 
@@ -426,7 +426,6 @@ TH3F meanResponseAsH3( const TH3F& h3_fast, const TH3F& h3_full ) {
     }
 
     return h3_scale;
-
 }
 
 int main( int argc, char** argv ) {
