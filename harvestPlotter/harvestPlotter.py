@@ -25,6 +25,9 @@ def randomName():
 def readHist( filename, histoname ):
     f = ROOT.TFile( filename )
     h = f.Get( histoname )
+    if not h:
+        print "Histogram {} not found in file {}".format(histoname, filename)
+        return
     h = ROOT.gROOT.CloneObject( h )
     if not h.GetSumw2N():
         h.Sumw2()
@@ -119,7 +122,11 @@ def draw( files, path, name, config ):
     hists = []
     for file in files:
         h = readHist( file, "{}/{}".format( path, name ) )
-        if not round( h.GetEntries()) or not round( h.Integral() ): return
+        if not h:
+            return
+        if not round( h.GetEntries()) or not round( h.Integral() ):
+            print "no entries in {}".format( name )
+            return
 
         if isinstance( h, ROOT.TH2 ):
             h = h.ProfileX( randomName() )
@@ -176,7 +183,18 @@ def draw( files, path, name, config ):
         r = ratio.Ratio( "Full/Mod  ", hists[0], hists[2] )
     r.draw()
     if len(hists)>2:
-        processName = "modIncl_"+processName
+        processName = "modIncl_DQMscale_"+processName
+
+    if name == "h_ele_PoPtrueVsEta":
+        for bin in range( 1, r.ratio.GetNbinsX()+1 ):
+            x = r.ratio.GetBinLowEdge( bin+1 )
+            y = r.ratio.GetBinContent( bin )
+            ey1 = r.ratio.GetBinError( bin )
+            ey2 = r.totalUncert.GetBinError(bin)
+            ey = ROOT.TMath.Sqrt( ey1**2 + ey2**2 )
+            #if abs(y-1) < ey: y = 1.
+            print "else if( genEta < %s ) { scale = %s; }"%(x,y)
+
     ROOT.gPad.GetCanvas().SaveAs("plots/%s_%s.pdf"%(processName, name ))
 
 def compareHistograms( files, path="SimTreeProducer" ):
@@ -201,13 +219,26 @@ if __name__ == "__main__":
 
 
     # closure single E
-    compareHistograms( [ cmsswPath+"validateScaling/closure/fullsim.root", cmsswPath+"validateScaling/closure/fastsim.root", cmsswPath+"validateScaling/closure/fastsim_mod.root" ] )
+    #compareHistograms( [ cmsswPath+"validateScaling/closure/fullsim.root", cmsswPath+"validateScaling/closure/fastsim.root", cmsswPath+"validateScaling/closure/fastsim_mod.root" ] )
 
     # closure full E
-    compareHistograms( [ cmsswPath+"validateScaling/closureAllE/fullsim.root", cmsswPath+"validateScaling/closureAllE/fastsim.root", cmsswPath+"validateScaling/closureAllE/fastsim_mod.root" ] )
+    #compareHistograms( [ cmsswPath+"validateScaling/closureAllE/fullsim.root", cmsswPath+"validateScaling/closureAllE/fastsim.root", cmsswPath+"validateScaling/closureAllE/fastsim_mod.root" ] )
 
+    # Hgg
     #compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FastSim.root" ], "DQMData/Run 1/EgammaV/Run summary/PhotonValidator/Photons" )
+
+    # Hgg, incl mod
     #compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FastSim.root", cmsswPath+"testRunTheMatrix/Hgg/DQM_V0001_R000000001__Global__CMSSW_X_Y_Z__RECO.root" ], "DQMData/Run 1/EgammaV/Run summary/PhotonValidator/Photons" )
+
+    # Zee
     #compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FastSim.root" ], "DQMData/Run 1/EgammaV/Run summary/ElectronMcSignalValidator" )
+
+    # Zee, incl mod
     #compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FastSim.root", cmsswPath+"testRunTheMatrix/fast/DQM_V0001_R000000001__Global__CMSSW_X_Y_Z__RECO_mod1.root" ], "DQMData/Run 1/EgammaV/Run summary/ElectronMcSignalValidator" )
+
+    # Zee, incl dqm scaling mod
+    #compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FastSim.root", cmsswPath+"testRunTheMatrix/fast2/DQM_V0001_R000000001__Global__CMSSW_X_Y_Z__RECO.root" ], "DQMData/Run 1/EgammaV/Run summary/ElectronMcSignalValidator" )
+
+    # different steps
+    compareHistograms( [ cmsswPath+"Analyzer/ResponseOnDifferentLevels/full.root", cmsswPath+"Analyzer/ResponseOnDifferentLevels/fast.root" ], "ana" )
 
