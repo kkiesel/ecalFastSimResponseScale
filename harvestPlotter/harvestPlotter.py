@@ -1,10 +1,11 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
-
 import ConfigParser
 import ROOT
 import math
+import argparse
+import re
 from random import randint
 from sys import maxint
 
@@ -103,18 +104,22 @@ def draw( files, path, name, config ):
     c = ROOT.TCanvas()
 
     processTex = ""
-    processName = files[0].split("/")[6]
-    if "H130GG" in files[0]:
-        processTex = "H#rightarrow#gamma#gamma   13TeV"
-        processName = "Hgg"
-    if "ZEE" in files[0]:
-        processTex = "Z#rightarrowee  13TeV"
-        processName = "Zee"
-    if "closure" in files[0]:
+    match = re.match( ".*__RelVal(.*)_13__.*", files[0] )
+    if match:
+        regex = match.group(1)
+        if regex == "H130GGgluonfusion":
+            processTex = "H#rightarrow#gamma#gamma"
+            processName = "Hgg"
+        elif regex == "ZEE":
+            processTex = "Z#rightarrowee"
+            processName = "Zee"
+        else: print "does not know what to do with", regex
+    else:
         processTex = "Single e^{#minus}"
-    processTex += "          FullSim #color[2]{FastSim}"
+        processName = "closure"
+    processTex += "  FullSim #color[2]{FastSim}"
     if len(files) > 2:
-        processTex += " #color[4]{FastSim+Mod}"
+        processTex += " #color[4]{Mod}"
 
     hists = []
     for file in files:
@@ -158,22 +163,25 @@ def draw( files, path, name, config ):
         if not isinstance( h, ROOT.TProfile ) and not "VsEta" in name:
             h.Scale( 1./h.GetEntries() )
 
+    if name == "h_ele_mee_os":
+        for h in hists:
+            h.Rebin(2)
+
     m = multiplot.Multiplot()
     for h in hists:
         m.add( h )
     m.Draw()
 
-    #for i, h in enumerate(hists):
-    #    getOwnStatBox( h, .6,.9-0.05*i )
 
 
     label = ROOT.TLatex()
-    label.DrawLatexNDC( .01, .96, "#font[61]{CMS} #lower[-0.2]{#it{#scale[0.6]{#splitline{Private Work}{Simulation}}}}  "+processTex )
+    label.DrawLatexNDC( .01, .96, "#font[61]{CMS} #it{Simulation} "+processTex )
+    label.DrawLatexNDC( .18, .88, "Private Work" )
 
     if len(hists) == 2:
-        r = ratio.Ratio( "Full/Fast  ", hists[0], hists[1] )
+        r = ratio.Ratio( "Full/Fast", hists[0], hists[1] )
     else:
-        r = ratio.Ratio( "Full/Mod  ", hists[0], hists[2] )
+        r = ratio.Ratio( "Full/Mod", hists[0], hists[2] )
     r.draw()
     if len(hists)>2:
         processName = "modIncl_"+processName
@@ -201,13 +209,31 @@ if __name__ == "__main__":
 
 
     # closure single E
-    compareHistograms( [ cmsswPath+"validateScaling/closure/fullsim.root", cmsswPath+"validateScaling/closure/fastsim.root", cmsswPath+"validateScaling/closure/fastsim_mod.root" ] )
+    #compareHistograms( [ cmsswPath+"validateScaling/closure/fullsim.root", cmsswPath+"validateScaling/closure/fastsim.root", cmsswPath+"validateScaling/closure/fastsim_mod.root" ] )
 
     # closure full E
-    compareHistograms( [ cmsswPath+"validateScaling/closureAllE/fullsim.root", cmsswPath+"validateScaling/closureAllE/fastsim.root", cmsswPath+"validateScaling/closureAllE/fastsim_mod.root" ] )
+    #compareHistograms( [ cmsswPath+"validateScaling/closureAllE/fullsim.root", cmsswPath+"validateScaling/closureAllE/fastsim.root", cmsswPath+"validateScaling/closureAllE/fastsim_mod.root" ] )
 
     #compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FastSim.root" ], "DQMData/Run 1/EgammaV/Run summary/PhotonValidator/Photons" )
     #compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValH130GGgluonfusion_13__official_FastSim.root", cmsswPath+"testRunTheMatrix/Hgg/DQM_V0001_R000000001__Global__CMSSW_X_Y_Z__RECO.root" ], "DQMData/Run 1/EgammaV/Run summary/PhotonValidator/Photons" )
     #compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FastSim.root" ], "DQMData/Run 1/EgammaV/Run summary/ElectronMcSignalValidator" )
     #compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FastSim.root", cmsswPath+"testRunTheMatrix/fast/DQM_V0001_R000000001__Global__CMSSW_X_Y_Z__RECO_mod1.root" ], "DQMData/Run 1/EgammaV/Run summary/ElectronMcSignalValidator" )
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('files', nargs='+' )
+    args = parser.parse_args()
+
+    eFolder = "DQMData/Run 1/EgammaV/Run summary/ElectronMcSignalValidator"
+    pFolder = "DQMData/Run 1/EgammaV/Run summary/PhotonValidator/Photons"
+    myFolder = "SimTreeProducer"
+
+    if "ZEE" in args.files[0]:
+        folder = eFolder
+    elif "H130GG" in args.files[0]:
+        folder = pFolder
+    else:
+        folder = myFolder
+
+
+    compareHistograms( args.files, folder )
 
