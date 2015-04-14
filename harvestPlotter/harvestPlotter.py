@@ -101,6 +101,14 @@ def absHistWeighted( origHist ):
 
     return h
 
+def getMean( h, eb=True ):
+    (xmin, xmax) = (0, 1.5) if eb else (1.5, 5)
+
+    if not h.Integral( h.FindBin(xmin), h.FindBin(xmax) ): return None
+    h.Fit( "pol0", "0fcq", "", xmin, xmax )
+    f = h.GetFunction( "pol0" )
+    if not f: return 0
+    return f.GetParameter(0)
 
 def draw( files, path, name, config ):
 
@@ -140,6 +148,10 @@ def draw( files, path, name, config ):
 
         hists.append( h )
 
+    for h in hists:
+        if not h.GetXaxis().GetTitle():
+            h.SetXTitle( h.GetName() )
+
     hists[0].SetName("FullSim")
     if len(hists) > 1:
         hists[1].SetName("FastSim")
@@ -158,9 +170,13 @@ def draw( files, path, name, config ):
 
         if config.has_option( name, "title" ):
             h.SetTitle( config.get( name, "title" )+ "  " )
-        else:
+        elif h.GetTitle():
             h.SetXTitle( h.GetTitle() +"    "+ h.GetXaxis().GetTitle() )
             h.SetTitle( "" )
+        else:
+            pass
+
+        if config.has_option( name, "rebin" ): h.Rebin( config.getint( name, "rebin" ) )
 
         h.drawOption_ = "hist e"
         h.SetMarkerSize(0)
@@ -170,10 +186,6 @@ def draw( files, path, name, config ):
         if not isinstance( h, ROOT.TProfile ) and not "VsEta" in name:
             h.Scale( 1./h.GetEntries() )
 
-    if name == "h_ele_mee_os":
-        for h in hists:
-            h.Rebin(2)
-
     m = multiplot.Multiplot()
     for h in hists:
         m.add( h )
@@ -182,7 +194,7 @@ def draw( files, path, name, config ):
 
 
     label = ROOT.TLatex()
-    label.DrawLatexNDC( .01, .96, "#font[61]{CMS} #it{Simulation} "+processTex )
+    label.DrawLatexNDC( .01, .96, "#font[61]{CMS} #scale[0.8]{#it{Simulation}}  "+processTex )
     label.DrawLatexNDC( .18, .88, "Private Work" )
 
     if len(hists) == 2:
@@ -191,7 +203,31 @@ def draw( files, path, name, config ):
         r = ratio.Ratio( "Full/Mod", hists[0], hists[2] )
     r.draw()
     if len(hists)>2:
-        processName = "modIncl_DQMscale_"+processName
+        processName = "modIncl_"+processName
+
+    if "VsEta" in name:
+        ebFullMean = getMean( hists[0] )
+        eeFullMean = getMean( hists[0], False )
+        eb2Mean = getMean( hists[-1] )
+        ee2Mean = getMean( hists[-1], False )
+
+        agreementEB, agreementEE = 0, 0
+        if ebFullMean and eb2Mean:
+            agreementEB =  100*( abs(eb2Mean/ebFullMean) - 1 )
+        if eeFullMean and ee2Mean:
+            agreementEE =  100*( abs(ee2Mean/eeFullMean) - 1 )
+
+
+        agreementLeg = ROOT.TLegend(.2, .3, .5, .5)
+        agreementLeg.SetFillColor(0)
+        agreementLeg.SetTextSize( hists[0].GetXaxis().GetLabelSize() )
+        agreementLeg.SetTextFont( hists[0].GetXaxis().GetLabelFont() )
+        agreementLeg.SetHeader("Agreement Mod,Full")
+        agreementLeg.AddEntry( 0, "EB %.1f%%"%agreementEB, "" )
+        agreementLeg.AddEntry( 0, "EE %.1f%%"%agreementEE, "" )
+        agreementLeg.Draw()
+
+
 
     if name == "h_ele_PoPtrueVsEta":
         for bin in range( 1, r.ratio.GetNbinsX()+1 ):
@@ -248,8 +284,10 @@ if __name__ == "__main__":
     #compareHistograms( [ cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FullSim.root", cmsswPath+"harvest/DQM_V0001_R000000001__CMSSW_7_3_0__RelValZEE_13__official_FastSim.root", cmsswPath+"testRunTheMatrix/fast2/DQM_V0001_R000000001__Global__CMSSW_X_Y_Z__RECO.root" ], "DQMData/Run 1/EgammaV/Run summary/ElectronMcSignalValidator" )
 
     # different steps
-    compareHistograms( [ cmsswPath+"Analyzer/ResponseOnDifferentLevels/full.root", cmsswPath+"Analyzer/ResponseOnDifferentLevels/fast.root" ], "ana" )
+    #compareHistograms( [ cmsswPath+"Analyzer/ResponseOnDifferentLevels/full.root", cmsswPath+"Analyzer/ResponseOnDifferentLevels/fast.root" ], "ana" )
+    compareHistograms( [ cmsswPath+"Analyzer/ResponseOnDifferentLevels/full.root", cmsswPath+"Analyzer/ResponseOnDifferentLevels/fast.root", cmsswPath+"Analyzer/ResponseOnDifferentLevels/mod.root" ], "ana" )
 
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument('files', nargs='+' )
     args = parser.parse_args()
@@ -267,4 +305,4 @@ if __name__ == "__main__":
 
 
     compareHistograms( args.files, folder )
-
+    """
