@@ -364,7 +364,7 @@ TH3F calculateResponse( const TH3F& h3_fast, const TH3F& h3_full ) {
             }
 
             std::string savename = std::to_string(xbin) + "and" + std::to_string(ybin);
-            drawAll( (TH1D)(*h1_fast), (TH1D)(*h1_full), scale, corrScale, savename );
+//            drawAll( (TH1D)(*h1_fast), (TH1D)(*h1_full), scale, corrScale, savename );
         }
     return h3_scale;// only first e bin
     }
@@ -433,12 +433,13 @@ int main( int argc, char** argv ) {
 
     if ( argc < 3 ) {
         std::cerr << "Usage: " << argv[0] << " fastsim.root fullsim.root" << std::endl;
+        return 1;
     }
     std::string filenameFast = argv[1];
     std::string filenameFull = argv[2];
 
     // This histogram should be avaiable in both input files
-    std::string histname = "ecalScaleFactorCalculator/responseVsEVsEta_woGaps";
+    std::string histname = "ecalScaleFactorCalculator/responseVsEVsEta";
 
 
     auto h3_fast = getHist<TH3F>( filenameFast, histname );
