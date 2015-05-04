@@ -14,11 +14,14 @@
 #include<TProfile2D.h>
 #include<TROOT.h>
 #include<TChain.h>
+#include<TRandom.h>
 
 // user incuded files
 #include "Style.h"
 
 using namespace std;
+
+float MINR = 0.3;
 
 
 TH3F closure3d( TChain& tree, const TH3F& scales3d ) {
@@ -29,13 +32,17 @@ TH3F closure3d( TChain& tree, const TH3F& scales3d ) {
   tree.SetBranchAddress("r",&r);
   tree.SetBranchAddress("e",&e);
   tree.SetBranchAddress("eta",&eta);
+  TRandom rand;
 
   for( int i=0; i<tree.GetEntries(); i++ ) {
     tree.GetEntry(i);
-    if( r <= 0.85 ) continue;
+    if( r < MINR ) continue;
     auto bin = scales3d.FindFixBin( e, eta, r );
     auto scale = scales3d.GetBinContent( bin );
-    closure.Fill( e, eta, r*scale );
+    auto uncert = scales3d.GetBinError( bin );
+    auto sRand = rand.Gaus( scale, 5*uncert );
+    closure.Fill( e, eta, r*sRand );
+    //closure.Fill( e, eta, r*scale );
   }
 
   return closure;
@@ -67,7 +74,7 @@ void drawClosure( const TH3F& fullh3, const TH3F& fasth3, const TH3F& modih3 ) {
       //h1_full->Rebin(40);
       //h1_fast->Rebin(40);
 
-      h1_modi->Draw();
+      h1_modi->Draw("hist");
       h1_full->Draw("same");
       h1_fast->Draw("same");
       gPad->SaveAs( (std::string("plots/checker_")+to_string(xbin)+"vs"+to_string(ybin)+".pdf").c_str() );
@@ -76,36 +83,14 @@ void drawClosure( const TH3F& fullh3, const TH3F& fasth3, const TH3F& modih3 ) {
   }
 }
 
-TH3F calculateResponseFromTree( TChain& fasttree, TChain& fulltree, TH3F h ) {
-  float rfast, efast,etafast;
-  fasttree.SetBranchAddress("r",&rfast);
-  fasttree.SetBranchAddress("e",&efast);
-  fasttree.SetBranchAddress("eta",&etafast);
-
-  float rfull;
-  fulltree.SetBranchAddress("r",&rfull);
-
-  for( int i=0; i<100; i++ ) {
-    fasttree.GetEntry(i);
-    for( int j=0; j<100; j++ ) {
-      fulltree.GetEntry(j);
-      h.Fill( efast, etafast, rfull/rfast );
-    }
-  }
-
-  return h;
-
-}
-
 std::vector<float> getVectorFromTree( TChain& tree, bool sort=true ) {
   std::vector<float> vec;
   vec.reserve( tree.GetEntries() );
   float r;
   tree.SetBranchAddress("r",&r);
-  //for( int i=0; i<100000; i++ ) {
   for( int i=0; i<tree.GetEntries(); i++ ) {
     tree.GetEntry(i);
-    if( r<0.3) continue;
+    if( r < MINR ) continue;
     vec.push_back( r );
   }
   if( sort ) {
@@ -125,7 +110,7 @@ TH3F calculateResponseUnbinned( TChain& fasttree, TChain& fulltree, TH3F h ) {
   printf( "fast %f to %f\n", fastvector[0], fastvector[fastvector.size()-1] );
   printf( "full %f to %f\n", fullvector[0], fullvector[fullvector.size()-1] );
 
-  TProfile profile("profile", "title", h.GetZaxis()->GetNbins(), h.GetZaxis()->GetXmin(), h.GetZaxis()->GetXmax() );
+  TProfile profile("profile", "title", h.GetZaxis()->GetNbins(), h.GetZaxis()->GetXmin(), h.GetZaxis()->GetXmax(), "s" );
   for( unsigned i=0; i<fastvector.size(); i++ ) {
     auto fa = fastvector[i];
     auto jRel = 1.*i/fastvector.size()*fullvector.size();
@@ -136,6 +121,8 @@ TH3F calculateResponseUnbinned( TChain& fasttree, TChain& fulltree, TH3F h ) {
 
   for( int i=0; i<profile.GetNbinsX()+2;i++ ) {
     h.SetBinContent( 1, 1, i, profile.GetBinContent(i) );
+    if( i==15) std::cout << profile.GetBinError(i) << std::endl;
+    h.SetBinError( 1, 1, i, profile.GetBinError(i) );
   }
 
 
@@ -161,13 +148,13 @@ int main( int argc, char** argv ) {
   fulltree.AddFile( fullname.c_str() );
 
   //TH3F h3default("responseVsEVsEta", ";E_{gen};#eta_{gen};E/E_{gen}", 100, 5, 1005, 400, 0, 3.2, 2000, 0, 1.05 );
-  TH3F h3default("responseVsEVsEta", ";E_{gen};#eta_{gen};E/E_{gen}", 1, -1, 1e6, 1, -1, 5, 1000, 0.8, 1.01 );
+  TH3F h3default("responseVsEVsEta", ";E_{gen};#eta_{gen};E/E_{gen}", 1, -1, 1e6, 1, -1, 5, 20000, 0.8, 1.01 );
 
   auto fasth3 = (TH3F*) h3default.Clone("fasth3");
   auto fullh3 = (TH3F*) h3default.Clone("fullh3");
 
-  fasttree.Draw("r:eta:e>>fasth3", "1");
-  fulltree.Draw("r:eta:e>>fullh3", "1");
+  fasttree.Draw("r:eta:e>>fasth3", ("r>"+std::to_string(MINR)).c_str() );
+  fulltree.Draw("r:eta:e>>fullh3", ("r>"+std::to_string(MINR)).c_str() );
 
   cout << "Calculate scale" << endl;
   auto scales3d = calculateResponseUnbinned( fasttree, fulltree, h3default );
@@ -179,39 +166,6 @@ int main( int argc, char** argv ) {
 
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
