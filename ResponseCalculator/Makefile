@@ -3,25 +3,19 @@ INCS = -I$(shell root-config --incdir) -I.
 
 WARN = -Wall -Wshadow
 
+EXE = Closure unbinnedScaling ResponseCalculator Checker
 
-EXE = ResponseCalculator
-#EXE = Closure
-OBJ = $(EXE).o
+all: $(EXE)
 
-all: $(EXE) Makefile
-	@
-
-%.o:%.cc
-	g++ -o $@ $+ -c -O2 $(INCS) $(WARN) -std=c++11
-
-$(EXE): $(OBJ)
+$(EXE) : % : %.o
 	g++ -O2 -o $@ $+ $(LIBS) $(WARN)
 
+%.o : %.cc
+	g++ -o $@ $+ -c -O2 $(INCS) $(WARN) -std=c++11
 
 clean:
 	@rm -f *.o # objects
+	@rm -f $(EXE)
 	@rm -f *.cxx lib*h # remove rootcints generated source and header files
 	@rm -f AutoDict_* *_h.d *_cc.d *_C.d # cint generated files
 
-cp:
-	cp plots/1and30.pdf plots/2and2.pdf ../../documents/presentations/2015-03-dpg/
